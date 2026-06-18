@@ -26,9 +26,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
+from pydantic import BaseModel
+
 from agents.keyword_highlighter import update_metadata_highlighting
 
-from . import ingestion, storage
+from . import dedup_service, ingestion, storage
 from .models import ContextUpdate, DatabaseCreate
 
 app = FastAPI(title="Agentic SLR API", version="0.1.0")
@@ -162,6 +164,45 @@ def clear_papers(db_id: str):
 
 
 # --------------------------------------------------------------------------- #
+# Deduplication (Phase 2)
+# --------------------------------------------------------------------------- #
+class DedupRunRequest(BaseModel):
+    priority_order: list[str] | None = None
+
+
+@app.post("/api/deduplicate")
+def run_deduplication_endpoint(payload: DedupRunRequest | None = None):
+    order = payload.priority_order if payload else None
+    return dedup_service.run(order)
+
+
+@app.get("/api/deduplication")
+def get_deduplication():
+    return dedup_service.get_report()
+
+
+@app.post("/api/deduplication/restore/{index}")
+def restore_duplicate(index: str):
+    try:
+        return dedup_service.set_status(index, "restored")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/deduplication/remove/{index}")
+def remove_duplicate(index: str):
+    try:
+        return dedup_service.set_status(index, "duplicate")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/deduplication/papers")
+def get_kept_papers():
+    return dedup_service.kept_papers()
+
+
+# --------------------------------------------------------------------------- #
 # Dashboard
 # --------------------------------------------------------------------------- #
 @app.get("/api/dashboard")
@@ -170,18 +211,31 @@ def dashboard():
     summaries = ingestion.database_summaries()
     total = sum(s["paper_count"] for s in summaries)
     rules = metadata.get("highlight_rules", {})
+
+    dedup = dedup_service.get_report()
+    dedup_has_run = dedup.get("has_run", False)
+    dedup_kept = dedup.get("kept_count", 0) if dedup_has_run else 0
+    # Currently-removed = duplicates still flagged (restores reduce this count).
+    dedup_removed = len(dedup.get("duplicates", [])) if dedup_has_run else 0
+
     return {
         "title": metadata.get("title", ""),
-        "research_questions": metadata.get("research_questions", []),
+        "research_questions": metadata.get("research_questions", ""),
         "context_configured": bool(metadata.get("keyword_string")),
         "highlight_terms": len(rules.get("terms", [])),
         "highlight_source": rules.get("source"),
         "total_papers": total,
         "databases": summaries,
+        "dedup": {
+            "has_run": dedup_has_run,
+            "kept": dedup_kept,
+            "removed": dedup_removed,
+        },
         "stages": [
             {"key": "01_raw_paper_list", "label": "Data Ingestion", "count": total,
              "done": total > 0},
-            {"key": "02_deduplication", "label": "Deduplication", "count": 0, "done": False},
+            {"key": "02_deduplication", "label": "Deduplication", "count": dedup_kept,
+             "done": dedup_has_run},
             {"key": "03_abstract_title_screening", "label": "Screening", "count": 0,
              "done": False},
         ],

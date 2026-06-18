@@ -23,7 +23,8 @@ agentic-slr/
 │   ├── storage.py               # metadata + paper-file I/O
 │   ├── models.py / paths.py
 ├── data/
-│   └── 01_raw_paper_list/   # one JSON per database (e.g. ieee.json)
+│   ├── 01_raw_paper_list/   # one JSON per database (e.g. ieee.json)
+│   └── 02_deduplication/    # deduplicated.json, report.json, dedup_state.json
 ├── frontend/                # Vite + React + Tailwind
 ├── requirements.txt
 └── .env / .env.example
@@ -103,7 +104,21 @@ port 8000, so start the backend first.
 }
 ```
 
+## Phase 2 — Deduplication
+
+- **Deduplication** page — runs intra- and inter-database deduplication in
+  priority order (IEEE → ACM → Scopus → Web of Science by default). Matching is
+  deterministic: DOI equality first, then normalized-title equality with a
+  compatible-year guard.
+- **Traceability matrix** — shows, per database, how many papers were duplicates
+  and which source database each matched (the diagonal = intra-database duplicates).
+- **Review list** — every removed duplicate with its matched original and match
+  type, each with a **Restore** button. Restores are tracked and update the kept
+  dataset live.
+- Outputs are written to `data/02_deduplication/` (`deduplicated.json`,
+  `report.json`, `dedup_state.json`) — the raw lists in `01_raw_paper_list/` are
+  never modified.
+
 ## Roadmap
 
-- **Phase 2** — Deduplication (intra/inter-database with priority + traceability matrix).
 - **Phase 3** — Abstract/Title screening interface with the LangChain screening agent.

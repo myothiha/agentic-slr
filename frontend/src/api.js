@@ -48,6 +48,20 @@ export const api = {
   getPapers: (id) => request(`/papers/${id}`),
   clearPapers: (id) => request(`/papers/${id}`, { method: "DELETE" }),
 
+  // Deduplication
+  runDeduplication: (priorityOrder = null) =>
+    request("/deduplicate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ priority_order: priorityOrder }),
+    }),
+  getDeduplication: () => request("/deduplication"),
+  getDeduplicatedPapers: () => request("/deduplication/papers"),
+  restoreDuplicate: (index) =>
+    request(`/deduplication/restore/${encodeURIComponent(index)}`, { method: "POST" }),
+  removeDuplicate: (index) =>
+    request(`/deduplication/remove/${encodeURIComponent(index)}`, { method: "POST" }),
+
   // Dashboard
   getDashboard: () => request("/dashboard"),
 };

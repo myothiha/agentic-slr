@@ -3,12 +3,16 @@ import Dashboard from "./pages/Dashboard.jsx";
 import DatabaseManagement from "./pages/DatabaseManagement.jsx";
 import ContextConfiguration from "./pages/ContextConfiguration.jsx";
 import DataIngestion from "./pages/DataIngestion.jsx";
+import DatabasePapers from "./pages/DatabasePapers.jsx";
+import Deduplication from "./pages/Deduplication.jsx";
+import DeduplicatedList from "./pages/DeduplicatedList.jsx";
 
 const nav = [
   { to: "/", label: "Dashboard", end: true },
   { to: "/context", label: "Context Configuration" },
   { to: "/databases", label: "Database Management" },
   { to: "/ingestion", label: "Data Ingestion" },
+  { to: "/deduplication", label: "Deduplication" },
 ];
 
 function Sidebar() {
@@ -40,7 +44,7 @@ function Sidebar() {
         <p className="text-[11px] uppercase tracking-wide text-slate-500 mb-2">Pipeline</p>
         <ol className="space-y-1 text-xs text-slate-400">
           <li>1. Context &amp; Ingestion</li>
-          <li className="opacity-50">2. Deduplication</li>
+          <li>2. Deduplication</li>
           <li className="opacity-50">3. Screening</li>
         </ol>
       </div>
@@ -57,7 +61,10 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/context" element={<ContextConfiguration />} />
           <Route path="/databases" element={<DatabaseManagement />} />
+          <Route path="/databases/:id" element={<DatabasePapers />} />
           <Route path="/ingestion" element={<DataIngestion />} />
+          <Route path="/deduplication" element={<Deduplication />} />
+          <Route path="/deduplication/papers" element={<DeduplicatedList />} />
         </Routes>
       </main>
     </div>

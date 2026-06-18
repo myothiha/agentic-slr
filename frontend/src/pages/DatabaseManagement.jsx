@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "../api.js";
 import { ErrorBox } from "./Dashboard.jsx";
 
@@ -8,6 +9,7 @@ export default function DatabaseManagement() {
   const [name, setName] = useState("");
   const [prefix, setPrefix] = useState("");
   const [busy, setBusy] = useState(false);
+  const navigate = useNavigate();
 
   const load = () => api.getDatabases().then(setDbs).catch((e) => setError(e.message));
   useEffect(() => {
@@ -53,7 +55,7 @@ export default function DatabaseManagement() {
       <header className="mb-6">
         <h2 className="text-2xl font-semibold text-slate-900">Database Management</h2>
         <p className="text-slate-500 mt-1">
-          Configure the data sources for your review. These populate the upload page.
+          Configure the data sources for your review. Use “Check Raw paper list” to view and search a database’s papers.
         </p>
       </header>
 
@@ -81,13 +83,21 @@ export default function DatabaseManagement() {
                 </td>
                 <td className="px-4 py-3">{db.paper_count}</td>
                 <td className="px-4 py-3 text-slate-400">{db.index_range || "—"}</td>
-                <td className="px-4 py-3 text-right">
-                  <button
-                    onClick={() => remove(db)}
-                    className="text-xs text-red-600 hover:underline"
-                  >
-                    Remove
-                  </button>
+                <td className="px-4 py-3">
+                  <div className="flex items-center justify-end gap-3">
+                    <button
+                      onClick={() => navigate(`/databases/${db.id}`)}
+                      className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Check Raw paper list
+                    </button>
+                    <button
+                      onClick={() => remove(db)}
+                      className="text-xs text-red-600 hover:underline"
+                    >
+                      Remove
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

@@ -30,8 +30,8 @@ from pydantic import BaseModel
 
 from agents.keyword_highlighter import update_metadata_highlighting
 
-from . import dedup_service, ingestion, storage
-from .models import ContextUpdate, DatabaseCreate
+from . import backup_service, dedup_service, ingestion, screening_service, storage
+from .models import ContextUpdate, DatabaseCreate, ScreeningLabel
 
 app = FastAPI(title="Agentic SLR API", version="0.1.0")
 
@@ -203,6 +203,80 @@ def get_kept_papers():
 
 
 # --------------------------------------------------------------------------- #
+# Screening (Phase 3)
+# --------------------------------------------------------------------------- #
+@app.get("/api/screening")
+def get_screening():
+    return screening_service.get_screening()
+
+
+@app.post("/api/screening/suggest/{index}")
+def screening_suggest(index: str):
+    try:
+        return screening_service.suggest(index)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.post("/api/screening/suggest-batch")
+def screening_suggest_batch(limit: int = 25):
+    return screening_service.suggest_batch(limit)
+
+
+@app.post("/api/screening/label/{index}")
+def screening_label(index: str, payload: ScreeningLabel):
+    try:
+        return screening_service.set_label(index, payload.label, payload.comment)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/screening/comment/{index}")
+def screening_comment(index: str, payload: ScreeningLabel):
+    try:
+        return screening_service.set_comment(index, payload.comment or "")
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.post("/api/screening/reset/{index}")
+def screening_reset(index: str):
+    try:
+        return screening_service.reset(index)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+# --------------------------------------------------------------------------- #
+# Backup & Restore
+# --------------------------------------------------------------------------- #
+@app.get("/api/backups")
+def list_backups():
+    return backup_service.list_backups()
+
+
+@app.post("/api/backups")
+def create_backup(label: str | None = None):
+    return backup_service.create_backup(label)
+
+
+@app.post("/api/backups/restore/{name}")
+def restore_backup(name: str):
+    try:
+        return backup_service.restore_backup(name)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.delete("/api/backups/{name}")
+def delete_backup(name: str):
+    try:
+        return backup_service.delete_backup(name)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+# --------------------------------------------------------------------------- #
 # Dashboard
 # --------------------------------------------------------------------------- #
 @app.get("/api/dashboard")
@@ -218,6 +292,11 @@ def dashboard():
     # Currently-removed = duplicates still flagged (restores reduce this count).
     dedup_removed = len(dedup.get("duplicates", [])) if dedup_has_run else 0
 
+    screening = screening_service.get_screening()
+    screen_counts = screening.get("counts", {})
+    screen_total = screen_counts.get("total", 0)
+    screen_decided = screen_counts.get("decided", 0)
+
     return {
         "title": metadata.get("title", ""),
         "research_questions": metadata.get("research_questions", ""),
@@ -231,12 +310,17 @@ def dashboard():
             "kept": dedup_kept,
             "removed": dedup_removed,
         },
+        "screening": {
+            "total": screen_total,
+            "decided": screen_decided,
+            "by_label": screen_counts.get("by_label", {}),
+        },
         "stages": [
             {"key": "01_raw_paper_list", "label": "Data Ingestion", "count": total,
              "done": total > 0},
             {"key": "02_deduplication", "label": "Deduplication", "count": dedup_kept,
              "done": dedup_has_run},
-            {"key": "03_abstract_title_screening", "label": "Screening", "count": 0,
-             "done": False},
+            {"key": "03_abstract_title_screening", "label": "Screening",
+             "count": screen_decided, "done": screen_total > 0 and screen_decided >= screen_total},
         ],
     }

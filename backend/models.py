@@ -61,6 +61,12 @@ class Paper(BaseModel):
     raw: dict[str, Any] = Field(default_factory=dict)
 
 
+class ScreeningLabel(BaseModel):
+    """Payload for setting a screening decision or comment."""
+    label: Optional[str] = None
+    comment: Optional[str] = None
+
+
 class DatabaseSummary(BaseModel):
     id: str
     name: str

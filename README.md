@@ -24,7 +24,8 @@ agentic-slr/
 │   ├── models.py / paths.py
 ├── data/
 │   ├── 01_raw_paper_list/   # one JSON per database (e.g. ieee.json)
-│   └── 02_deduplication/    # deduplicated.json, report.json, dedup_state.json
+│   ├── 02_deduplication/    # deduplicated.json, report.json, dedup_state.json
+│   └── 03_abstract_title_screening/  # screening_state.json, screening_decisions.json
 ├── frontend/                # Vite + React + Tailwind
 ├── requirements.txt
 └── .env / .env.example
@@ -119,6 +120,22 @@ port 8000, so start the backend first.
   `report.json`, `dedup_state.json`) — the raw lists in `01_raw_paper_list/` are
   never modified.
 
+## Phase 3 — Abstract/Title Screening
+
+- **Screening** page — screens the deduplicated kept set paper by paper in a
+  side-by-side view (paper details vs inclusion/exclusion criteria), with keyword
+  highlighting from the compiled regex. "Get AI suggestion" runs the LangChain
+  screening agent (DeepSeek) to propose Include/Exclude/Maybe + reasoning; you
+  add a comment and set the final label (auto-advances to the next paper).
+- **Modification trail** — each paper tracks `pending → AI labeled → user
+  confirmed / user modified`.
+- **Screened Review** page — color-coded list (green/red/yellow) with multi-select
+  filters (label + modification trail), inline label editing, and pagination.
+- Decisions persist to `data/03_abstract_title_screening/`.
+
+> The AI suggestion needs a provider key in `.env` and internet access; without
+> them, screening still works manually (the agent reports "unavailable").
+
 ## Roadmap
 
-- **Phase 3** — Abstract/Title screening interface with the LangChain screening agent.
+- **LLM Agent Configuration Page** — per-agent provider/model mapping (planned).

@@ -15,11 +15,8 @@
     "5. The article is published in a workshop or a doctoral symposium.",
     "6. The article is a grey publicaion, e.g. a non-refereed technical report or thesis. (should we include the technical report from famous company such as OpenAI, Google, Claude, Qwen, Deepseek or not.)",
     "7. The article is written in a language that is not English.",
-    "8. The article mentions the use of LLMs without describing the employed techniques.",
-    "1. LLM in future works or",
-    "2. performance of LLM-enabled tools.",
-    "9. Not peer reviewed and does not meet quality criteria check.",
-    "10. Not secondary study such as literature review."
+    "8. The article mentions the use of LLMs without describing the employed techniques: (For example:, LLM in future works.)",
+    "9. Not secondary study such as literature review."
   ],
   "databases": [
     {

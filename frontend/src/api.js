@@ -62,6 +62,35 @@ export const api = {
   removeDuplicate: (index) =>
     request(`/deduplication/remove/${encodeURIComponent(index)}`, { method: "POST" }),
 
+  // Screening
+  getScreening: () => request("/screening"),
+  suggestScreening: (index) =>
+    request(`/screening/suggest/${encodeURIComponent(index)}`, { method: "POST" }),
+  suggestBatch: (limit = 25) =>
+    request(`/screening/suggest-batch?limit=${limit}`, { method: "POST" }),
+  labelScreening: (index, label, comment) =>
+    request(`/screening/label/${encodeURIComponent(index)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label, comment }),
+    }),
+  commentScreening: (index, comment) =>
+    request(`/screening/comment/${encodeURIComponent(index)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ comment }),
+    }),
+  resetScreening: (index) =>
+    request(`/screening/reset/${encodeURIComponent(index)}`, { method: "POST" }),
+
+  // Backup & Restore
+  listBackups: () => request("/backups"),
+  createBackup: (label) =>
+    request(`/backups${label ? `?label=${encodeURIComponent(label)}` : ""}`, { method: "POST" }),
+  restoreBackup: (name) =>
+    request(`/backups/restore/${encodeURIComponent(name)}`, { method: "POST" }),
+  deleteBackup: (name) => request(`/backups/${encodeURIComponent(name)}`, { method: "DELETE" }),
+
   // Dashboard
   getDashboard: () => request("/dashboard"),
 };

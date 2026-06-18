@@ -141,28 +141,57 @@ A reusable, paginated, searchable table with expandable detail rows powers both
 the raw per-database list and the deduplicated list (search across all fields;
 per-page selector defaulting to 20).
 
-## 4. Phase 3: Screening Interface & LLM Agent ⏳ (Planned)
-- **Agent** (`agents/abstract_title_screening.py`, currently a stub) — compare
-  title, abstract, and keywords against the criteria; produce reasoning and a
-  suggested label (Include/Exclude/Maybe) via LangChain output parsers. Save
-  progress and final decisions to `data/03_abstract_title_screening/`.
-- **Abstract & Title Screening Page**:
+## 4. Phase 3: Automated Criteria Checking ⏳ (Planned)
+- **Concept**: Before sending papers to the LLM for abstract/title screening, run fast programmatic checks to filter out papers that violate specific Exclusion criteria.
+- **Criteria to be checked programmatically**:
+  - **Exclusion 1 (Page count < 8)**: Extract page ranges from the `raw` metadata, compute length, and flag if < 8. If raw metadata does not include that information, it will be flagged for manual review.
+- **Service & persistence** (`backend/automated_checking.py`):
+  - Reads from the deduplicated kept set.
+  - Flags papers and saves to `data/03_automated_checking/checking_state.json` with `status` (passed/flagged) and `flag_reasons`.
+- **Web UI Pages**:
+  - **Automated Checking Review Page** (`/automated-checking`): A table showing flagged papers and their specific `flag_reason`. Allows the user to "Confirm Exclusion" or "Override & Keep".
+- **Impact**: The LLM Screening phase (now conceptually Phase 4) will read its input from the passed/kept papers of this automated check.
+
+## 5. Phase 4: Screening Interface & LLM Agent ✅
+- **Screening Agent** (`agents/abstract_title_screening.py`) ✅ — compares title,
+  abstract, and keywords against the inclusion/exclusion criteria (research
+  questions passed as extra context) and returns a suggested label
+  (Include/Exclude/Maybe) plus reasoning, parsed from the model's JSON output.
+  Robust parsing handles fenced/embedded JSON and a keyword fallback; if no LLM
+  key is configured (or the call fails) it returns a clear "unavailable" result
+  instead of crashing.
+- **Service & persistence** (`backend/screening_service.py`) ✅ — seeds/syncs
+  screening records from the **deduplicated kept set**, preserving decisions for
+  papers that persist and dropping those no longer kept. Persists to
+  `data/03_abstract_title_screening/` (`screening_state.json` plus a flat
+  `screening_decisions.json`).
+- **Modification trail** ✅ — `pending` → `llm_labeled` (AI suggested) →
+  `user_confirmed` (user accepted the AI label) or `user_modified` (user chose a
+  different label, or labeled with no AI suggestion).
+- **Abstract & Title Screening Page** ✅ (`/screening`):
   - **Side-by-side split view** — left panel shows `index`, `Title`, `Abstract`,
     `Year`, and `Keywords`; right panel shows inclusion/exclusion criteria.
-  - **Keyword highlighting** — dynamically highlights matching text using the
-    deterministic regex compiled by the Highlighting Agent.
-  - **Action area** — read-only LLM reasoning, a user-comment text area, and
-    `[Include] [Exclude] [Maybe]` buttons.
-  - **Navigation** — "Next Paper" and "Previous Paper".
-- **Screened Papers Review Page**:
-  - **List view** — Title, Author, Year, Abstract, Label, LLM Reasoning, User
-    Comment.
-  - **Filtering panel** — multi-select filters to slice the dataset by:
-    - **Modification trail**: LLM Labeled, User Confirmed, User Modified.
-    - **Screen labels**: Include, Exclude, Maybe.
+  - **Keyword highlighting** ✅ — highlights matching text in title/keywords/
+    abstract using the deterministic regex compiled by the Highlighting Agent
+    (`components/Highlight.jsx`).
+  - **Action area** — "Get AI suggestion" button, read-only LLM reasoning + label
+    badge, a user-comment text area, and `[Include] [Exclude] [Maybe]` buttons
+    (auto-advances to the next paper after a decision).
+  - **Navigation** — "Previous"/"Next" with position and status indicators.
+- **Screened Papers Review Page** ✅ (`/screening/review`):
+  - **List view** — Title, Author, Year, Label, AI Reasoning, User Comment.
+  - **Filtering panel** — multi-select filters by **label** (Include/Exclude/
+    Maybe/Unlabeled) and **modification trail** (Pending/AI labeled/User
+    confirmed/User modified).
   - **Color coding** — row tinted by label (green Include, red Exclude, yellow
     Maybe).
-  - **Inline editing** — quick action buttons to change the label seamlessly.
+  - **Inline editing** — per-row I/E/M buttons change the label without leaving
+    the page. **Paginated** (per-page selector, default 20).
+- **Dashboard wiring** ✅ — the Screening stage shows the decided count and marks
+  itself done once every paper in the set has a label.
+- **Phase 3 API**: `GET /api/screening`, `POST /api/screening/suggest/{index}`,
+  `POST /api/screening/label/{index}`, `POST /api/screening/comment/{index}`,
+  `POST /api/screening/reset/{index}`.
 
 ## Verification Plan
 - **Done so far**:
@@ -177,7 +206,11 @@ per-page selector defaulting to 20).
     correct. ✅
   - Frontend production build passes; pagination slice logic checked. ✅
   - LangChain v1 packages verified to install and build a chain. ✅
+  - Screening verified: sync from the deduplicated set, modification-trail
+    transitions (confirmed vs modified), counts, reset, and the agent's JSON
+    response parser. ✅
 - **Process note**: verification must run against an **isolated temporary data
   directory**, never the live `data/` folder.
-- **Remaining (Phase 3)**: dry-run the screening interface with the LangChain
-  DeepSeek agent to verify label suggestions, filtering, and inline editing.
+- **Known limitation**: the live LLM call to DeepSeek cannot be exercised from
+  the build sandbox (no outbound network); the agent's graceful-failure path was
+  verified, and the real suggestion runs on a machine with internet + a key.

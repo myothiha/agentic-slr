@@ -171,7 +171,16 @@ function Matrix({ matrix }) {
 
 function DuplicatesTable({ duplicates, restored, originals, busyIndex, onRestore }) {
   const [open, setOpen] = useState(null);
+  const [perPage, setPerPage] = useState(20);
+  const [page, setPage] = useState(1);
   const all = [...(duplicates || []), ...(restored || [])];
+
+  const total = all.length;
+  const totalPages = Math.max(1, Math.ceil(total / perPage));
+  const current = Math.min(page, totalPages);
+  const start = (current - 1) * perPage;
+  const pageItems = all.slice(start, start + perPage);
+
   if (all.length === 0) {
     return (
       <section>
@@ -190,7 +199,26 @@ function DuplicatesTable({ duplicates, restored, originals, busyIndex, onRestore
           <span className="ml-2 text-amber-600 font-normal">· {restored.length} restored</span>
         )}
       </h3>
-      <p className="text-xs text-slate-400 mb-3">Click a row to compare the two papers side by side.</p>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-slate-400">Click a row to compare the two papers side by side.</p>
+        <label className="flex items-center gap-2 text-sm text-slate-600">
+          Per page
+          <select
+            className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm"
+            value={perPage}
+            onChange={(e) => {
+              setPerPage(Number(e.target.value));
+              setPage(1);
+            }}
+          >
+            {[10, 20, 50, 100].map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
         <table className="w-full text-sm table-fixed">
           <thead className="bg-slate-50 text-xs uppercase text-slate-500">
@@ -202,7 +230,7 @@ function DuplicatesTable({ duplicates, restored, originals, busyIndex, onRestore
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {all.map((p) => {
+            {pageItems.map((p) => {
               const isRestored = p.dedup_status === "restored";
               const original = originals[p.duplicate_of?.index];
               const isOpen = open === p.index;
@@ -273,7 +301,42 @@ function DuplicatesTable({ duplicates, restored, originals, busyIndex, onRestore
           </tbody>
         </table>
       </div>
+
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
+        <p className="text-slate-500">
+          Showing {start + 1}–{start + pageItems.length} of {total}
+        </p>
+        <div className="flex items-center gap-1">
+          <PageBtn disabled={current <= 1} onClick={() => setPage(1)}>
+            « First
+          </PageBtn>
+          <PageBtn disabled={current <= 1} onClick={() => setPage(current - 1)}>
+            ‹ Prev
+          </PageBtn>
+          <span className="px-3 text-slate-600">
+            Page {current} of {totalPages}
+          </span>
+          <PageBtn disabled={current >= totalPages} onClick={() => setPage(current + 1)}>
+            Next ›
+          </PageBtn>
+          <PageBtn disabled={current >= totalPages} onClick={() => setPage(totalPages)}>
+            Last »
+          </PageBtn>
+        </div>
+      </div>
     </section>
+  );
+}
+
+function PageBtn({ disabled, onClick, children }) {
+  return (
+    <button
+      disabled={disabled}
+      onClick={onClick}
+      className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+    >
+      {children}
+    </button>
   );
 }
 

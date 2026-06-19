@@ -62,6 +62,17 @@ export const api = {
   removeDuplicate: (index) =>
     request(`/deduplication/remove/${encodeURIComponent(index)}`, { method: "POST" }),
 
+  // Page filter
+  getPageFilter: () => request("/page-filter"),
+  setPageFilter: (payload) =>
+    request("/page-filter", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  setPageOverride: (index, mode) =>
+    request(`/page-filter/override/${encodeURIComponent(index)}?mode=${mode}`, { method: "POST" }),
+
   // Screening
   getScreening: () => request("/screening"),
   suggestScreening: (index) =>

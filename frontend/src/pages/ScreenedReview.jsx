@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api.js";
 import { ErrorBox } from "./Dashboard.jsx";
@@ -29,6 +29,7 @@ export default function ScreenedReview() {
   const [statusFilter, setStatusFilter] = useState(new Set());
   const [perPage, setPerPage] = useState(20);
   const [page, setPage] = useState(1);
+  const [open, setOpen] = useState(null);
 
   const load = () =>
     api
@@ -137,7 +138,11 @@ export default function ScreenedReview() {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {pageItems.map((p) => (
-              <tr key={p.index} className={p.label ? ROW_TINT[p.label] : ""}>
+              <Fragment key={p.index}>
+              <tr
+                onClick={() => setOpen(open === p.index ? null : p.index)}
+                className={`cursor-pointer ${p.label ? ROW_TINT[p.label] : "hover:bg-slate-50"}`}
+              >
                 <td className="px-3 py-3 align-top">
                   <p className="text-slate-800">{p.title || "(no title)"}</p>
                   <p className="text-xs text-slate-400 font-mono mt-0.5">{p.index}</p>
@@ -178,7 +183,10 @@ export default function ScreenedReview() {
                     {LABELS.map((lab) => (
                       <button
                         key={lab}
-                        onClick={() => relabel(p.index, lab)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          relabel(p.index, lab);
+                        }}
                         className={`rounded border px-2 py-0.5 text-xs ${
                           p.label === lab
                             ? LABEL_BTN[lab]
@@ -191,6 +199,89 @@ export default function ScreenedReview() {
                   </div>
                 </td>
               </tr>
+              {open === p.index && (
+                <tr className="bg-slate-50">
+                  <td colSpan={9} className="px-4 py-4">
+                    <div className="grid grid-cols-3 gap-4 text-sm">
+                      <div className="col-span-2">
+                        <p className="text-xs font-semibold uppercase text-slate-500 mb-1">Abstract</p>
+                        <p className="text-slate-700 whitespace-pre-wrap leading-relaxed">
+                          {p.abstract || "(no abstract)"}
+                        </p>
+                        {p.llm_reasoning && (
+                          <div className="mt-3">
+                            <p className="text-xs font-semibold uppercase text-slate-500 mb-1">
+                              AI reasoning
+                            </p>
+                            <p className="text-slate-700 whitespace-pre-wrap">{p.llm_reasoning}</p>
+                          </div>
+                        )}
+                        {p.user_comment && (
+                          <div className="mt-3">
+                            <p className="text-xs font-semibold uppercase text-slate-500 mb-1">
+                              Your comment
+                            </p>
+                            <p className="text-slate-700 whitespace-pre-wrap">{p.user_comment}</p>
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Meta label="Database" value={p.database} />
+                        <Meta
+                          label="Pages"
+                          value={
+                            p.page_count != null
+                              ? `${p.page_count}${
+                                  p.page_start != null && p.page_end != null
+                                    ? ` (${p.page_start}–${p.page_end})`
+                                    : ""
+                                }`
+                              : "unknown"
+                          }
+                        />
+                        <Meta label="DOI" value={p.doi} mono />
+                        <Meta label="Venue" value={p.venue} />
+                        <div>
+                          <p className="text-[11px] font-semibold uppercase text-slate-500 mb-1">
+                            Keywords
+                          </p>
+                          {p.keywords && p.keywords.length ? (
+                            <div className="flex flex-wrap gap-1">
+                              {p.keywords.map((k, i) => (
+                                <span
+                                  key={i}
+                                  className="rounded bg-slate-200 px-2 py-0.5 text-xs text-slate-700"
+                                >
+                                  {k}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-xs text-slate-400">—</p>
+                          )}
+                        </div>
+                        {p.url && (
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase text-slate-500 mb-1">
+                              URL
+                            </p>
+                            <a
+                              href={p.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-blue-600 hover:underline text-xs break-all"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {p.url}
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              )}
+              </Fragment>
             ))}
             {total === 0 && (
               <tr>
@@ -218,6 +309,16 @@ export default function ScreenedReview() {
         </div>
       )}
     </div>
+  );
+}
+
+function Meta({ label, value, mono }) {
+  if (value === undefined || value === null || value === "") return null;
+  return (
+    <p className="text-sm text-slate-700">
+      <span className="text-[11px] font-semibold uppercase text-slate-500">{label}:</span>{" "}
+      <span className={mono ? "font-mono text-xs break-all" : ""}>{value}</span>
+    </p>
   );
 }
 

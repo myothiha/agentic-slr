@@ -30,7 +30,14 @@ from pydantic import BaseModel
 
 from agents.keyword_highlighter import update_metadata_highlighting
 
-from . import backup_service, dedup_service, ingestion, screening_service, storage
+from . import (
+    backup_service,
+    dedup_service,
+    ingestion,
+    page_filter_service,
+    screening_service,
+    storage,
+)
 from .models import ContextUpdate, DatabaseCreate, ScreeningLabel
 
 app = FastAPI(title="Agentic SLR API", version="0.1.0")
@@ -203,6 +210,33 @@ def get_kept_papers():
 
 
 # --------------------------------------------------------------------------- #
+# Page filter (between deduplication and screening)
+# --------------------------------------------------------------------------- #
+class PageFilterConfig(BaseModel):
+    min_pages: int | None = None
+    max_pages: int | None = None
+    exclude_unknown: bool = False
+
+
+@app.get("/api/page-filter")
+def get_page_filter():
+    return page_filter_service.get()
+
+
+@app.put("/api/page-filter")
+def set_page_filter(cfg: PageFilterConfig):
+    return page_filter_service.set_config(cfg.min_pages, cfg.max_pages, cfg.exclude_unknown)
+
+
+@app.post("/api/page-filter/override/{index}")
+def set_page_override(index: str, mode: str):
+    try:
+        return page_filter_service.set_override(index, mode)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# --------------------------------------------------------------------------- #
 # Screening (Phase 3)
 # --------------------------------------------------------------------------- #
 @app.get("/api/screening")
@@ -292,6 +326,11 @@ def dashboard():
     # Currently-removed = duplicates still flagged (restores reduce this count).
     dedup_removed = len(dedup.get("duplicates", [])) if dedup_has_run else 0
 
+    pf = page_filter_service.get()
+    pf_counts = pf.get("counts", {})
+    pf_included = pf_counts.get("included", 0) + pf_counts.get("unknown", 0)
+    pf_active = pf.get("active", False)
+
     screening = screening_service.get_screening()
     screen_counts = screening.get("counts", {})
     screen_total = screen_counts.get("total", 0)
@@ -315,11 +354,18 @@ def dashboard():
             "decided": screen_decided,
             "by_label": screen_counts.get("by_label", {}),
         },
+        "page_filter": {
+            "active": pf_active,
+            "included": pf_included,
+            "excluded": pf_counts.get("excluded", 0),
+        },
         "stages": [
             {"key": "01_raw_paper_list", "label": "Data Ingestion", "count": total,
              "done": total > 0},
             {"key": "02_deduplication", "label": "Deduplication", "count": dedup_kept,
              "done": dedup_has_run},
+            {"key": "02b_page_filter", "label": "Page Filter", "count": pf_included,
+             "done": pf_active},
             {"key": "03_abstract_title_screening", "label": "Screening",
              "count": screen_decided, "done": screen_total > 0 and screen_decided >= screen_total},
         ],

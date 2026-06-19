@@ -16,6 +16,70 @@ from typing import Any, Optional
 CANONICAL_KEYS = ["title", "authors", "year", "abstract", "keywords", "doi", "venue", "url"]
 
 
+# --------------------------------------------------------------------------- #
+# Page-count extraction (used by the Page Filter stage)
+# --------------------------------------------------------------------------- #
+_COUNT_KEYS = {
+    "numpages", "number of pages", "page count", "pagecount", "no. of pages",
+    "no of pages", "pages_count", "num pages",
+}
+_START_KEYS = {
+    "start page", "page start", "beginning page", "starting page", "first page",
+    "sp", "bp", "spage",
+}
+_END_KEYS = {"end page", "page end", "ending page", "last page", "ep", "epage"}
+_RANGE_KEYS = {"pages", "page range", "pp", "page"}
+
+
+def _first_int(value: Any) -> Optional[int]:
+    m = re.search(r"\d+", str(value or ""))
+    return int(m.group(0)) if m else None
+
+
+def extract_pages(raw: dict[str, Any] | None) -> dict[str, Optional[int]]:
+    """Derive (start, end, count) page numbers from a raw record dict.
+
+    Handles explicit counts (numpages / Number of Pages), start+end pairs
+    (Start Page / End Page, Page start / Page end, SP / EP), and range strings
+    such as "2584-2593" or "2584–2593" in a 'pages' field. Returns None values
+    when the data is unavailable.
+    """
+    if not raw:
+        return {"start": None, "end": None, "count": None}
+    lower = {str(k).lower().strip(): v for k, v in raw.items()}
+
+    count = None
+    for k in _COUNT_KEYS:
+        if k in lower:
+            count = _first_int(lower[k])
+            if count:
+                break
+
+    start = next((_first_int(lower[k]) for k in _START_KEYS if k in lower and _first_int(lower[k])), None)
+    end = next((_first_int(lower[k]) for k in _END_KEYS if k in lower and _first_int(lower[k])), None)
+
+    if count is None and start is not None and end is not None and end >= start:
+        count = end - start + 1
+
+    if count is None:
+        # Try a range string like "123-130" / "123–130" / "123--130".
+        for k in _RANGE_KEYS:
+            if k in lower:
+                nums = re.findall(r"\d+", str(lower[k]))
+                if len(nums) >= 2:
+                    a, b = int(nums[0]), int(nums[-1])
+                    if b >= a:
+                        start = start or a
+                        end = end or b
+                        count = b - a + 1
+                        break
+
+    # A zero/negative count is meaningless; treat as unknown.
+    if count is not None and count <= 0:
+        count = None
+    return {"start": start, "end": end, "count": count}
+
+
 def _blank_record() -> dict[str, Any]:
     return {
         "title": "",

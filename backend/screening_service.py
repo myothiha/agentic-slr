@@ -21,7 +21,7 @@ from typing import Any, Optional
 
 from agents.abstract_title_screening import LABELS, screen_paper
 
-from . import dedup_service, paths, storage
+from . import dedup_service, page_filter_service, parsers, paths, storage
 
 _lock = threading.Lock()
 
@@ -42,8 +42,19 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _page_fields(paper: dict[str, Any]) -> dict[str, Any]:
+    """Derive page metadata from the source paper's raw record."""
+    pages = parsers.extract_pages(paper.get("raw"))
+    return {
+        "page_count": pages["count"],
+        "page_start": pages["start"],
+        "page_end": pages["end"],
+    }
+
+
 def _blank_record(paper: dict[str, Any]) -> dict[str, Any]:
     rec = {k: paper.get(k) for k in _PAPER_FIELDS}
+    rec.update(_page_fields(paper))
     rec.update({
         "llm_label": None,
         "llm_reasoning": "",
@@ -93,7 +104,8 @@ def sync() -> dict[str, Any]:
     New kept papers get fresh records; decisions for papers that remain are
     preserved; records for papers no longer in the kept set are dropped.
     """
-    kept = dedup_service.kept_papers()
+    # Source = papers that pass the page filter (all dedup-kept when inactive).
+    kept = page_filter_service.kept_papers()
     state = _load_raw_state()
     old = state["records"]
     new_records: dict[str, Any] = {}
@@ -106,6 +118,7 @@ def sync() -> dict[str, Any]:
             # Refresh the paper fields in case ingestion data changed.
             for k in _PAPER_FIELDS:
                 rec[k] = paper.get(k)
+            rec.update(_page_fields(paper))  # backfill/refresh page metadata
             new_records[idx] = rec
         else:
             new_records[idx] = _blank_record(paper)

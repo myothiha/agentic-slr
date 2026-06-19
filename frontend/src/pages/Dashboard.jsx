@@ -25,7 +25,7 @@ export default function Dashboard() {
       {/* Pipeline progress */}
       <section className="mb-8">
         <h3 className="text-sm font-semibold text-slate-700 mb-3">Pipeline progress</h3>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           {data.stages.map((s, i) => (
             <div
               key={s.key}

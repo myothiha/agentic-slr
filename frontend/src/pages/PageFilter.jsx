@@ -142,11 +142,21 @@ export default function PageFilter() {
       </div>
 
       {/* Summary */}
-      <div className="mb-5 grid grid-cols-4 gap-4">
+      <div className="mb-3 grid grid-cols-4 gap-4">
         <Stat label="Total" value={c.total} onClick={() => setStatusView("all")} active={statusView === "all"} />
         <Stat label="Included" value={c.included} tone="text-green-600" onClick={() => setStatusView("included")} active={statusView === "included"} />
         <Stat label="Excluded" value={c.excluded} tone="text-red-600" onClick={() => setStatusView("excluded")} active={statusView === "excluded"} />
         <Stat label="Unknown" value={c.unknown} tone="text-amber-600" onClick={() => setStatusView("unknown")} active={statusView === "unknown"} />
+      </div>
+
+      <div className="mb-5 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+        <strong>{(c.included || 0) + (c.unknown || 0)}</strong> paper(s) will proceed to screening
+        {" "}— {c.included || 0} included
+        {(c.unknown || 0) > 0 && (
+          <> + {c.unknown} unknown (kept because their page count couldn’t be read; tick
+          “Exclude papers with unknown page count” above to drop them)</>
+        )}
+        .
       </div>
 
       <div className="mb-3 flex items-center justify-between">

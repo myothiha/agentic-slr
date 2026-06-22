@@ -8,7 +8,9 @@ Responsibilities:
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
+
+from agents.deduplication import normalize_doi, normalize_title
 
 from . import parsers, storage
 
@@ -23,6 +25,41 @@ def _next_seq(existing: list[dict[str, Any]]) -> int:
             if tail.isdigit():
                 max_seq = max(max_seq, int(tail))
     return max_seq
+
+
+def _years_compatible(a: Optional[int], b: Optional[int]) -> bool:
+    if a and b:
+        return a == b
+    return True
+
+
+class _Seen:
+    """Registry of already-present papers (by DOI and title+year) so we can skip
+    incoming records that duplicate the existing list or each other.
+    """
+
+    def __init__(self, papers: list[dict[str, Any]]):
+        self.doi: dict[str, bool] = {}
+        self.title: dict[str, list[Optional[int]]] = {}
+        for p in papers:
+            self.add(p.get("doi", ""), p.get("title", ""), p.get("year"))
+
+    def add(self, doi: str, title: str, year: Optional[int]) -> None:
+        dk = normalize_doi(doi)
+        tk = normalize_title(title)
+        if dk:
+            self.doi[dk] = True
+        if tk:
+            self.title.setdefault(tk, []).append(year)
+
+    def contains(self, doi: str, title: str, year: Optional[int]) -> bool:
+        dk = normalize_doi(doi)
+        if dk and dk in self.doi:
+            return True
+        tk = normalize_title(title)
+        if tk and tk in self.title:
+            return any(_years_compatible(year, y) for y in self.title[tk])
+        return False
 
 
 def ingest_files(
@@ -43,30 +80,47 @@ def ingest_files(
     seq = _next_seq(existing)
     prefix = db["prefix"]
 
+    # Skip incoming records that already exist (by DOI, then title+year) — both
+    # against the current list and against earlier records in this same upload.
+    seen = _Seen(existing)
+
     added: list[dict[str, Any]] = []
     per_file: list[dict[str, Any]] = []
 
     for filename, content in files:
         records = parsers.parse_file(filename, content)
+        f_added = 0
+        f_skipped = 0
         for rec in records:
+            title = rec.get("title", "")
+            doi = rec.get("doi", "")
+            year = rec.get("year")
+            if seen.contains(doi, title, year):
+                f_skipped += 1
+                continue
             seq += 1
             paper = {
                 "index": f"{prefix}-{seq:03d}",
                 "database": db["name"],
                 "database_id": database_id,
-                "title": rec.get("title", ""),
+                "title": title,
                 "authors": rec.get("authors", []),
-                "year": rec.get("year"),
+                "year": year,
                 "abstract": rec.get("abstract", ""),
                 "keywords": rec.get("keywords", []),
-                "doi": rec.get("doi", ""),
+                "doi": doi,
                 "venue": rec.get("venue", ""),
                 "url": rec.get("url", ""),
                 "source_file": filename,
                 "raw": rec.get("raw", {}),
             }
             added.append(paper)
-        per_file.append({"filename": filename, "parsed": len(records)})
+            seen.add(doi, title, year)
+            f_added += 1
+        per_file.append({
+            "filename": filename, "parsed": len(records),
+            "added": f_added, "skipped": f_skipped,
+        })
 
     combined = existing + added
     storage.save_papers(database_id, combined)
@@ -76,6 +130,7 @@ def ingest_files(
         "database": db["name"],
         "files": per_file,
         "added": len(added),
+        "skipped": sum(f["skipped"] for f in per_file),
         "total": len(combined),
         "index_range": _index_range(combined, prefix),
     }

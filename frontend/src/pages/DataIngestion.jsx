@@ -156,7 +156,11 @@ export default function DataIngestion() {
               ) : (
                 <div>
                   <p className="font-semibold">
-                    Added {result.added} papers to {result.database}.
+                    Added {result.added} new paper(s) to {result.database}
+                    {result.skipped > 0 && (
+                      <> · skipped {result.skipped} already present</>
+                    )}
+                    .
                   </p>
                   <p className="mt-1">
                     Total now {result.total} · Index range {result.index_range}
@@ -164,7 +168,8 @@ export default function DataIngestion() {
                   <ul className="mt-1 text-green-600">
                     {result.files.map((f, i) => (
                       <li key={i}>
-                        {f.filename}: {f.parsed} parsed
+                        {f.filename}: {f.parsed} parsed → {f.added} added
+                        {f.skipped > 0 && `, ${f.skipped} skipped`}
                       </li>
                     ))}
                   </ul>

@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api.js";
 import { ErrorBox } from "./Dashboard.jsx";
 import { LABELS, ScreeningFilters, matchesScreeningFilters } from "../components/screeningFilters.jsx";
@@ -30,6 +30,7 @@ export default function ScreenedReview() {
   const [perPage, setPerPage] = useState(20);
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState(null);
+  const navigate = useNavigate();
 
   const load = () =>
     api
@@ -144,7 +145,16 @@ export default function ScreenedReview() {
                 className={`cursor-pointer ${p.label ? ROW_TINT[p.label] : "hover:bg-slate-50"}`}
               >
                 <td className="px-3 py-3 align-top">
-                  <p className="text-slate-800">{p.title || "(no title)"}</p>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/screening?paper=${encodeURIComponent(p.index)}`);
+                    }}
+                    className="text-left text-blue-700 hover:underline"
+                    title="Open in screening view"
+                  >
+                    {p.title || "(no title)"}
+                  </button>
                   <p className="text-xs text-slate-400 font-mono mt-0.5">{p.index}</p>
                 </td>
                 <td className="px-3 py-3 align-top text-slate-600 max-w-[10rem]">

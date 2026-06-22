@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api.js";
 import { ErrorBox } from "./Dashboard.jsx";
 import Highlight from "../components/Highlight.jsx";
@@ -31,6 +31,9 @@ export default function Screening() {
   const [labelFilter, setLabelFilter] = useState(new Set());
   const [statusFilter, setStatusFilter] = useState(new Set());
   const stopRef = useRef(false);
+  const [searchParams] = useSearchParams();
+  const focusIndex = searchParams.get("paper");
+  const appliedFocus = useRef(false);
 
   useEffect(() => {
     Promise.all([api.getScreening(), api.getContext()])
@@ -54,6 +57,16 @@ export default function Screening() {
   useEffect(() => {
     setPos(0);
   }, [labelFilter, statusFilter]);
+
+  // If navigated here with ?paper=INDEX (e.g. from Screened Review), jump to it.
+  useEffect(() => {
+    if (!papers || !focusIndex || appliedFocus.current) return;
+    const i = filtered.findIndex((p) => p.index === focusIndex);
+    if (i >= 0) {
+      setPos(i);
+      appliedFocus.current = true;
+    }
+  }, [papers, filtered, focusIndex]);
 
   const safePos = Math.min(pos, Math.max(filtered.length - 1, 0));
   const current = filtered[safePos];

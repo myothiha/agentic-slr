@@ -124,6 +124,8 @@ def ingest_files(
 
     combined = existing + added
     storage.save_papers(database_id, combined)
+    # Retain the original upload batch (latest only) for traceability/re-download.
+    storage.save_raw_uploads(database_id, files)
 
     return {
         "database_id": database_id,
@@ -179,5 +181,6 @@ def database_summaries() -> list[dict[str, Any]]:
             "paper_count": len(papers),
             "index_range": _index_range(papers, db["prefix"]),
             "source_files": source_files,
+            "raw_files": storage.list_raw_uploads(db["id"]),
         })
     return summaries

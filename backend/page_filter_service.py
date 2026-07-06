@@ -31,6 +31,13 @@ def _ensure_dir() -> None:
     paths.PAGE_FILTER_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def clear() -> None:
+    """Delete page-filter state (used for a cascade reset)."""
+    with _lock:
+        if STATE_FILE.exists():
+            STATE_FILE.unlink()
+
+
 def _load() -> dict[str, Any]:
     if not STATE_FILE.exists():
         return {"config": dict(DEFAULT_CONFIG), "overrides": {}}

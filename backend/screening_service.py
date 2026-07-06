@@ -38,6 +38,14 @@ def _ensure_dir() -> None:
     paths.SCREENING_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def clear() -> None:
+    """Delete screening state files (used for a cascade reset)."""
+    with _lock:
+        for fp in (STATE_FILE, DECISIONS_FILE):
+            if fp.exists():
+                fp.unlink()
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 

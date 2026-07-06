@@ -35,6 +35,27 @@ export default function DatabaseManagement() {
     }
   };
 
+  const empty = async (db) => {
+    if (!db.paper_count) return;
+    if (
+      !confirm(
+        `Empty the paper list for "${db.name}"? This deletes all ${db.paper_count} ingested paper(s). The database itself stays.`
+      )
+    )
+      return;
+    const cascade = confirm(
+      "Also reset the downstream results derived from these papers?\n\n" +
+        "OK — also clear deduplication, page-filter, and screening results.\n" +
+        "Cancel — empty papers only."
+    );
+    try {
+      await api.clearPapers(db.id, cascade);
+      await load();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
   const remove = async (db) => {
     if (
       !confirm(
@@ -90,6 +111,13 @@ export default function DatabaseManagement() {
                       className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
                     >
                       Check Raw paper list
+                    </button>
+                    <button
+                      onClick={() => empty(db)}
+                      disabled={!db.paper_count}
+                      className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Empty
                     </button>
                     <button
                       onClick={() => remove(db)}

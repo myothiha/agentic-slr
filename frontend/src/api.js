@@ -46,7 +46,11 @@ export const api = {
     return request(`/ingest/${id}`, { method: "POST", body: form });
   },
   getPapers: (id) => request(`/papers/${id}`),
-  clearPapers: (id) => request(`/papers/${id}`, { method: "DELETE" }),
+  clearPapers: (id, cascade = false) =>
+    request(`/papers/${id}${cascade ? "?cascade=true" : ""}`, { method: "DELETE" }),
+  getRawFiles: (id) => request(`/papers/${id}/raw-files`),
+  rawFileUrl: (id, filename) =>
+    `${BASE}/papers/${id}/raw-files/${encodeURIComponent(filename)}`,
 
   // Deduplication
   runDeduplication: (priorityOrder = null) =>

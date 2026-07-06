@@ -32,6 +32,14 @@ def _ensure_dir() -> None:
     paths.DEDUP_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def clear() -> None:
+    """Delete all deduplication state files (used for a cascade reset)."""
+    with _lock:
+        for fp in (STATE_FILE, DEDUP_FILE, REPORT_FILE):
+            if fp.exists():
+                fp.unlink()
+
+
 def _kept(annotated: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [p for p in annotated if p.get("dedup_status") in ("unique", "restored")]
 

@@ -11,7 +11,9 @@ Endpoints
   DELETE /api/databases/{db_id}     -> remove a database (and its papers)
   POST /api/ingest/{db_id}          -> upload + ingest files
   GET  /api/papers/{db_id}          -> list papers for a database
-  DELETE /api/papers/{db_id}        -> clear a database's papers
+  DELETE /api/papers/{db_id}        -> clear a database's papers (?cascade resets downstream)
+  GET  /api/papers/{db_id}/raw-files            -> list retained original uploads
+  GET  /api/papers/{db_id}/raw-files/{filename} -> download an original upload
   GET  /api/dashboard               -> high-level pipeline overview
 """
 from __future__ import annotations
@@ -25,6 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
 from pydantic import BaseModel
 
@@ -165,9 +168,38 @@ def get_papers(db_id: str):
 
 
 @app.delete("/api/papers/{db_id}")
-def clear_papers(db_id: str):
+def clear_papers(db_id: str, cascade: bool = False):
+    """Empty a database's raw paper list.
+
+    When ``cascade`` is true, also clear the downstream deduplication,
+    page-filter, and screening results, since those are aggregate views
+    derived from the raw papers and become stale once papers are removed.
+    """
     storage.delete_papers(db_id)
-    return {"cleared": db_id}
+    if cascade:
+        dedup_service.clear()
+        page_filter_service.clear()
+        screening_service.clear()
+    return {"cleared": db_id, "cascade": cascade}
+
+
+@app.get("/api/papers/{db_id}/raw-files")
+def list_raw_files(db_id: str):
+    """List the original uploaded files retained for a database (latest batch)."""
+    return storage.list_raw_uploads(db_id)
+
+
+@app.get("/api/papers/{db_id}/raw-files/{filename}")
+def download_raw_file(db_id: str, filename: str):
+    """Download an original uploaded file as stored on the server."""
+    fp = storage.raw_upload_path(db_id, filename)
+    if fp is None:
+        raise HTTPException(status_code=404, detail="Raw file not found.")
+    return FileResponse(
+        path=str(fp),
+        filename=fp.name,
+        media_type="application/octet-stream",
+    )
 
 
 # --------------------------------------------------------------------------- #

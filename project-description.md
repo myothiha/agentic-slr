@@ -6,6 +6,7 @@ A web interface (built with React and FastAPI) will be implemented to support th
 
 ## 1. Context Configuration & Database Management
 - **Database Management**: View, add, and edit target data sources (defaults: IEEE Xplore, Scopus, Web of Science, ACM Digital Library).
+- **Empty paper list**: Each database row has an "Empty" action that clears that database's ingested papers while keeping the database itself. The user is prompted to choose between emptying papers only, or a cascade reset that also clears the downstream deduplication, page-filter, and screening results derived from those papers.
 - **Context Configuration**: A web form to receive the SLR metadata: Title, Research Questions, a complex Boolean keyword string, and structured inclusion/exclusion criteria.
 - **Dynamic Highlighting**: An agent converts the keyword string into deterministic matching rules to automatically highlight relevant keywords across papers in the UI.
 
@@ -13,6 +14,7 @@ A web interface (built with React and FastAPI) will be implemented to support th
 - An upload form to ingest lists of papers extracted from multiple databases. 
 - If multiple files are uploaded for a single database, they are combined into one unified dataset for that database.
 - The raw data is converted into a uniform **JSON format** (one file per database) and each paper is given a sequential index (e.g., `IEEE-001`) for traceability.
+- **Retain original files**: The original uploaded files (CSV, Excel, etc.) are also kept on the server (only the latest upload batch per database is retained) and can be downloaded again from the per-database raw paper page.
 
 ## 3. Deduplication Process
 - **Intra-database deduplication**: Remove duplicates within a single database if multiple files were uploaded.

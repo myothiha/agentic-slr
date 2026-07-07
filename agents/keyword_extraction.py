@@ -27,10 +27,13 @@ _PROMPT = (
     "You are tagging a research paper for a systematic literature review.\n\n"
     "The reviewer wants to extract keywords of ONE specific kind, described as:\n"
     "\"{description}\"\n\n"
-    "Read the paper metadata below and extract up to {max_tags} SHORT keyword "
-    "tags that match this description. Rules:\n"
+    "Read the paper metadata below and extract ALL keyword tags that match this "
+    "description. There is NO limit on the number of tags — do not restrict "
+    "yourself to a few; include EVERY tag that is genuinely relevant to the "
+    "paper. Rules:\n"
     "- Only return tags clearly supported by the paper; if none apply, return an "
-    "empty list.\n"
+    "empty list. Relevance is the only filter — never drop a relevant tag just to "
+    "keep the list short.\n"
     "- Each tag must be a concise noun phrase (1-4 words), lowercase.\n"
     "- Use the most GENERAL canonical form of the concept (e.g. 'fine-tuning', "
     "not 'LoRA fine-tuning of BERT-base'); keep tags reusable across papers.\n"
@@ -104,7 +107,7 @@ def extract_keywords(
     paper: dict[str, Any],
     description: str,
     preferred: Any = None,
-    max_tags: int = 5,
+    max_tags: int = 50,
 ) -> dict[str, Any]:
     if not (description or "").strip():
         return {"items": [], "tags": [], "available": False,
@@ -127,7 +130,6 @@ def extract_keywords(
         chain = prompt | model
         result = chain.invoke({
             "description": description.strip(),
-            "max_tags": max_tags,
             "preferred_block": _preferred_block(pref),
             **_paper_meta(paper),
         })

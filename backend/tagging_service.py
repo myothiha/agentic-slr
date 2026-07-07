@@ -51,7 +51,7 @@ _lock = threading.Lock()
 
 STATE_FILE = paths.TAGGING_DIR / "tagging_state.json"
 
-MAX_TAGS = 5
+MAX_TAGS = 50  # safety ceiling only; the agent is told there is no fixed limit
 
 
 # --------------------------------------------------------------------------- #

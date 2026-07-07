@@ -11,6 +11,7 @@ import Screening from "./pages/Screening.jsx";
 import ScreenedReview from "./pages/ScreenedReview.jsx";
 import KeywordExtraction from "./pages/KeywordExtraction.jsx";
 import KeywordGrouping from "./pages/KeywordGrouping.jsx";
+import KeywordAnalysis from "./pages/KeywordAnalysis.jsx";
 import Backup from "./pages/Backup.jsx";
 
 const nav = [
@@ -24,6 +25,7 @@ const nav = [
   { to: "/screening/review", label: "Screened Review" },
   { to: "/tagging", label: "Keyword Extraction", end: true },
   { to: "/tagging/groups", label: "Keyword Grouping" },
+  { to: "/analysis", label: "Keyword Analysis" },
   { to: "/backup", label: "Backup & Restore" },
 ];
 
@@ -84,6 +86,7 @@ export default function App() {
           <Route path="/screening/review" element={<ScreenedReview />} />
           <Route path="/tagging" element={<KeywordExtraction />} />
           <Route path="/tagging/groups" element={<KeywordGrouping />} />
+          <Route path="/analysis" element={<KeywordAnalysis />} />
           <Route path="/backup" element={<Backup />} />
         </Routes>
       </main>

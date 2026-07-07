@@ -149,6 +149,11 @@ def _save(state: dict[str, Any]) -> None:
             json.dump(state, f, indent=2, ensure_ascii=False)
 
 
+def snapshot() -> dict[str, Any]:
+    """Read-only full state (papers + dimensions), for the analysis layer."""
+    return _load()
+
+
 def clear() -> None:
     """Delete all tagging state (used for a cascade reset)."""
     with _lock:

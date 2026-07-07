@@ -20,6 +20,7 @@ DEDUP_DIR = DATA_DIR / "02_deduplication"
 PAGE_FILTER_DIR = DATA_DIR / "02b_page_filter"
 SCREENING_DIR = DATA_DIR / "03_abstract_title_screening"
 TAGGING_DIR = DATA_DIR / "04_keyword_tagging"
+ANALYSIS_DIR = DATA_DIR / "05_keyword_analysis"
 
 
 def ensure_dirs() -> None:

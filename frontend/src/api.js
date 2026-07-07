@@ -144,6 +144,29 @@ export const api = {
   deleteTaggingGroup: (field, id) =>
     request(`/tagging/dimensions/${field}/groups/${id}`, { method: "DELETE" }),
 
+  // Keyword Analysis (Phase 6)
+  getAnalysisDimensions: () => request("/analysis/dimensions"),
+  computeAnalysis: (config) =>
+    request("/analysis/compute", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(config),
+    }),
+  listAnalysisViews: () => request("/analysis/views"),
+  createAnalysisView: (payload) =>
+    request("/analysis/views", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  updateAnalysisView: (id, payload) =>
+    request(`/analysis/views/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  deleteAnalysisView: (id) => request(`/analysis/views/${id}`, { method: "DELETE" }),
+
   // Backup & Restore
   listBackups: () => request("/backups"),
   createBackup: (label) =>

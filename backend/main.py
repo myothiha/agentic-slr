@@ -34,6 +34,7 @@ from pydantic import BaseModel
 from agents.keyword_highlighter import update_metadata_highlighting
 
 from . import (
+    analysis_service,
     backup_service,
     dedup_service,
     ingestion,
@@ -559,3 +560,64 @@ def delete_tagging_group(field: str, group_id: str):
         return {"deleted": group_id}
     except ValueError as e:
         raise _tagging_error(e)
+
+
+# --------------------------------------------------------------------------- #
+# Keyword Analysis (Phase 6): configurable multi-level charts + saved views
+# --------------------------------------------------------------------------- #
+class AnalysisConfig(BaseModel):
+    top: dict | None = None
+    breakdown: dict | None = None
+    series: dict | None = None
+    options: dict | None = None
+
+
+class AnalysisView(BaseModel):
+    name: str
+    config: dict = {}
+
+
+class AnalysisViewUpdate(BaseModel):
+    name: str | None = None
+    config: dict | None = None
+
+
+@app.get("/api/analysis/dimensions")
+def analysis_dimensions():
+    return analysis_service.dimensions()
+
+
+@app.post("/api/analysis/compute")
+def analysis_compute(config: AnalysisConfig):
+    return analysis_service.compute(config.model_dump())
+
+
+@app.get("/api/analysis/views")
+def analysis_list_views():
+    return analysis_service.list_views()
+
+
+@app.post("/api/analysis/views")
+def analysis_create_view(payload: AnalysisView):
+    try:
+        return analysis_service.create_view(payload.name, payload.config)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.put("/api/analysis/views/{view_id}")
+def analysis_update_view(view_id: str, payload: AnalysisViewUpdate):
+    try:
+        return analysis_service.update_view(view_id, payload.name, payload.config)
+    except ValueError as e:
+        code = 404 if "not found" in str(e).lower() else 400
+        raise HTTPException(status_code=code, detail=str(e))
+
+
+@app.delete("/api/analysis/views/{view_id}")
+def analysis_delete_view(view_id: str):
+    try:
+        analysis_service.delete_view(view_id)
+        return {"deleted": view_id}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))

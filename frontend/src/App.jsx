@@ -9,6 +9,8 @@ import DeduplicatedList from "./pages/DeduplicatedList.jsx";
 import PageFilter from "./pages/PageFilter.jsx";
 import Screening from "./pages/Screening.jsx";
 import ScreenedReview from "./pages/ScreenedReview.jsx";
+import KeywordExtraction from "./pages/KeywordExtraction.jsx";
+import KeywordGrouping from "./pages/KeywordGrouping.jsx";
 import Backup from "./pages/Backup.jsx";
 
 const nav = [
@@ -20,6 +22,8 @@ const nav = [
   { to: "/page-filter", label: "Page Filter" },
   { to: "/screening", label: "Abstract/Title Screening", end: true },
   { to: "/screening/review", label: "Screened Review" },
+  { to: "/tagging", label: "Keyword Extraction", end: true },
+  { to: "/tagging/groups", label: "Keyword Grouping" },
   { to: "/backup", label: "Backup & Restore" },
 ];
 
@@ -55,6 +59,7 @@ function Sidebar() {
           <li>2. Deduplication</li>
           <li>3. Page Filter</li>
           <li>4. Screening</li>
+          <li>5. Keyword Tagging</li>
         </ol>
       </div>
     </aside>
@@ -77,6 +82,8 @@ export default function App() {
           <Route path="/page-filter" element={<PageFilter />} />
           <Route path="/screening" element={<Screening />} />
           <Route path="/screening/review" element={<ScreenedReview />} />
+          <Route path="/tagging" element={<KeywordExtraction />} />
+          <Route path="/tagging/groups" element={<KeywordGrouping />} />
           <Route path="/backup" element={<Backup />} />
         </Routes>
       </main>

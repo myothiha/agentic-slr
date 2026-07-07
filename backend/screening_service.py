@@ -151,6 +151,42 @@ def get_screening() -> dict[str, Any]:
     return {"has_source": True, "papers": papers, "counts": _counts(papers)}
 
 
+def _included_with_source() -> tuple[list[dict[str, Any]], str]:
+    """Resolve the 'Include' set with a fallback, and report its source.
+
+    Preference order:
+      1. "user" — papers the user finally labelled Include.
+      2. "ai"   — papers the LLM suggested Include (``llm_label``) that the user
+                  has not overridden to a negative label (Exclude / Maybe).
+      3. "none" — nothing available yet.
+    """
+    records = list(_load_raw_state()["records"].values())
+    user_inc = [r for r in records if r.get("label") == "Include"]
+    if user_inc:
+        return user_inc, "user"
+    ai_inc = [
+        r for r in records
+        if r.get("llm_label") == "Include" and r.get("label") not in ("Exclude", "Maybe")
+    ]
+    if ai_inc:
+        return ai_inc, "ai"
+    return [], "none"
+
+
+def included_papers() -> list[dict[str, Any]]:
+    """Return the 'Include' set for downstream phases (e.g. keyword tagging).
+
+    Falls back to AI-labelled Include papers when no paper has been user-confirmed
+    yet. Records carry the paper display fields (title, abstract, keywords, …).
+    """
+    return _included_with_source()[0]
+
+
+def include_source() -> str:
+    """'user', 'ai', or 'none' — which set ``included_papers()`` is drawn from."""
+    return _included_with_source()[1]
+
+
 def _counts(papers: list[dict[str, Any]]) -> dict[str, Any]:
     by_label = {lab: 0 for lab in LABELS}
     by_status = {"pending": 0, "llm_labeled": 0, "user_confirmed": 0, "user_modified": 0}

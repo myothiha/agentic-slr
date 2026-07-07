@@ -41,6 +41,7 @@ from . import (
     parsers,
     screening_service,
     storage,
+    tagging_service,
 )
 from .models import ContextUpdate, DatabaseCreate, ScreeningLabel
 
@@ -186,6 +187,7 @@ def clear_papers(db_id: str, cascade: bool = False):
         dedup_service.clear()
         page_filter_service.clear()
         screening_service.clear()
+        tagging_service.clear()
     return {"cleared": db_id, "cascade": cascade}
 
 
@@ -408,3 +410,152 @@ def dashboard():
              "count": screen_decided, "done": screen_total > 0 and screen_decided >= screen_total},
         ],
     }
+
+
+# --------------------------------------------------------------------------- #
+# Keyword tagging (Phase 5): multiple independent dimensions, each with its own
+# extraction + categorization.
+# --------------------------------------------------------------------------- #
+class DimensionPayload(BaseModel):
+    name: str = ""
+    description: str = ""
+    preferred: list[str] = []
+
+
+class DimensionUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    preferred: list[str] | None = None
+    tag_descriptions: dict[str, str] | None = None
+
+
+class ExtractionRequest(BaseModel):
+    limit: int | None = None
+    force: bool = False
+
+
+class SuggestRequest(BaseModel):
+    target: str = "description"  # "description" | "keywords"
+    name: str | None = None
+    description: str | None = None
+
+
+class GroupPayload(BaseModel):
+    name: str
+    members: list[str] = []
+
+
+class GroupUpdate(BaseModel):
+    name: str | None = None
+    members: list[str] | None = None
+
+
+def _tagging_error(e: ValueError) -> HTTPException:
+    msg = str(e)
+    code = 404 if ("Unknown dimension" in msg or "not found" in msg.lower()) else 400
+    return HTTPException(status_code=code, detail=msg)
+
+
+@app.get("/api/tagging/dimensions")
+def list_tagging_dimensions():
+    return tagging_service.list_dimensions()
+
+
+@app.post("/api/tagging/dimensions")
+def create_tagging_dimension(payload: DimensionPayload):
+    try:
+        return tagging_service.add_dimension(
+            payload.name, payload.description, payload.preferred
+        )
+    except ValueError as e:
+        raise _tagging_error(e)
+
+
+@app.put("/api/tagging/dimensions/{field}")
+def update_tagging_dimension(field: str, payload: DimensionUpdate):
+    try:
+        return tagging_service.update_dimension(
+            field, payload.name, payload.description, payload.preferred,
+            payload.tag_descriptions,
+        )
+    except ValueError as e:
+        raise _tagging_error(e)
+
+
+@app.delete("/api/tagging/dimensions/{field}")
+def delete_tagging_dimension(field: str):
+    try:
+        tagging_service.delete_dimension(field)
+        return {"deleted": field}
+    except ValueError as e:
+        raise _tagging_error(e)
+
+
+@app.get("/api/tagging/dimensions/{field}")
+def get_tagging_dimension(field: str):
+    try:
+        return tagging_service.get_state(field)
+    except ValueError as e:
+        raise _tagging_error(e)
+
+
+@app.post("/api/tagging/dimensions/{field}/suggest")
+def suggest_tagging_definition(field: str, payload: SuggestRequest | None = None):
+    target = payload.target if payload else "description"
+    name = payload.name if payload else None
+    description = payload.description if payload else None
+    try:
+        return tagging_service.suggest(field, target, name, description)
+    except ValueError as e:
+        raise _tagging_error(e)
+
+
+@app.post("/api/tagging/dimensions/{field}/extract")
+def run_tagging_extraction(field: str, payload: ExtractionRequest | None = None):
+    limit = payload.limit if payload else None
+    force = payload.force if payload else False
+    try:
+        return tagging_service.run_extraction(field, limit=limit, force=force)
+    except ValueError as e:
+        raise _tagging_error(e)
+
+
+@app.get("/api/tagging/dimensions/{field}/papers")
+def get_tagging_papers(field: str):
+    try:
+        return tagging_service.get_papers(field)
+    except ValueError as e:
+        raise _tagging_error(e)
+
+
+@app.get("/api/tagging/dimensions/{field}/categories")
+def get_tagging_categories(field: str):
+    try:
+        return tagging_service.category_stats(field)
+    except ValueError as e:
+        raise _tagging_error(e)
+
+
+@app.post("/api/tagging/dimensions/{field}/groups")
+def create_tagging_group(field: str, payload: GroupPayload):
+    try:
+        return tagging_service.add_group(field, payload.name, payload.members)
+    except ValueError as e:
+        raise _tagging_error(e)
+
+
+@app.put("/api/tagging/dimensions/{field}/groups/{group_id}")
+def update_tagging_group(field: str, group_id: str, payload: GroupUpdate):
+    try:
+        return tagging_service.update_group(field, group_id, payload.name, payload.members)
+    except ValueError as e:
+        raise _tagging_error(e)
+
+
+@app.delete("/api/tagging/dimensions/{field}/groups/{group_id}")
+def delete_tagging_group(field: str, group_id: str):
+    try:
+        tagging_service.delete_group(field, group_id)
+        return {"deleted": group_id}
+    except ValueError as e:
+        raise _tagging_error(e)

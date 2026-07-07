@@ -98,6 +98,52 @@ export const api = {
   resetScreening: (index) =>
     request(`/screening/reset/${encodeURIComponent(index)}`, { method: "POST" }),
 
+  // Keyword tagging (Phase 5) — multiple independent dimensions
+  listTaggingDimensions: () => request("/tagging/dimensions"),
+  createTaggingDimension: (payload) =>
+    request("/tagging/dimensions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  updateTaggingDimension: (field, payload) =>
+    request(`/tagging/dimensions/${field}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  deleteTaggingDimension: (field) =>
+    request(`/tagging/dimensions/${field}`, { method: "DELETE" }),
+  getTagging: (field) => request(`/tagging/dimensions/${field}`),
+  suggestTagging: (field, payload) =>
+    request(`/tagging/dimensions/${field}/suggest`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  runTaggingExtraction: (field, payload = {}) =>
+    request(`/tagging/dimensions/${field}/extract`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  getTaggingPapers: (field) => request(`/tagging/dimensions/${field}/papers`),
+  getTaggingCategories: (field) => request(`/tagging/dimensions/${field}/categories`),
+  createTaggingGroup: (field, payload) =>
+    request(`/tagging/dimensions/${field}/groups`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  updateTaggingGroup: (field, id, payload) =>
+    request(`/tagging/dimensions/${field}/groups/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  deleteTaggingGroup: (field, id) =>
+    request(`/tagging/dimensions/${field}/groups/${id}`, { method: "DELETE" }),
+
   // Backup & Restore
   listBackups: () => request("/backups"),
   createBackup: (label) =>

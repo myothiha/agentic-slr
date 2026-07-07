@@ -1,4 +1,4 @@
-"""Parse bibliographic exports (RIS / CSV / BibTeX) into a uniform record format.
+"""Parse bibliographic exports (RIS / CSV / BibTeX / Excel) into a uniform record format.
 
 Each parser returns a list of "canonical" dicts with these keys:
     title, authors (list[str]), year (int|None), abstract,
@@ -90,8 +90,27 @@ def _blank_record() -> dict[str, Any]:
         "doi": "",
         "venue": "",
         "url": "",
+        "early_access": False,
         "raw": {},
     }
+
+
+def derive_early_access(raw: dict[str, Any] | None) -> bool:
+    """Detect an 'early access' / 'ahead of print' record from its raw columns.
+
+    Databases name this differently:
+      * Web of Science -> Document Type contains "Early Access"
+      * Scopus         -> Publication Stage is "Article in press"
+    IEEE exports have no such field, so this returns False for them.
+    """
+    if not raw:
+        return False
+    low = {str(k).lower().strip(): str(v) for k, v in raw.items()}
+    if "early access" in low.get("document type", "").lower():
+        return True
+    if "in press" in low.get("publication stage", "").lower():
+        return True
+    return False
 
 
 def _coerce_year(value: Any) -> Optional[int]:
@@ -201,18 +220,16 @@ def _build_header_index(headers: list[str]) -> dict[str, str]:
     return resolved
 
 
-def parse_csv(text: str) -> list[dict[str, Any]]:
-    # Strip a leading BOM if present.
-    text = text.lstrip("﻿")
-    reader = csv.DictReader(io.StringIO(text))
-    if not reader.fieldnames:
-        return []
-    header_index = _build_header_index(reader.fieldnames)
-
+def _rows_to_records(
+    fieldnames: list[str], rows: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Turn header-keyed row dicts (from CSV or Excel) into canonical records."""
+    header_index = _build_header_index(fieldnames)
     records: list[dict[str, Any]] = []
-    for row in reader:
+    for row in rows:
         rec = _blank_record()
-        rec["raw"] = {k: v for k, v in row.items() if v}
+        rec["raw"] = {k: v for k, v in row.items() if k and v}
+        rec["early_access"] = derive_early_access(rec["raw"])
         for field, header in header_index.items():
             value = (row.get(header) or "").strip()
             if not value:
@@ -228,6 +245,81 @@ def parse_csv(text: str) -> list[dict[str, Any]]:
         if any([rec["title"], rec["abstract"], rec["authors"]]):
             records.append(rec)
     return records
+
+
+def parse_csv(text: str) -> list[dict[str, Any]]:
+    # Strip a leading BOM if present.
+    text = text.lstrip("﻿")
+    reader = csv.DictReader(io.StringIO(text))
+    if not reader.fieldnames:
+        return []
+    return _rows_to_records(list(reader.fieldnames), list(reader))
+
+
+# --------------------------------------------------------------------------- #
+# Excel (.xlsx / .xlsm via openpyxl, legacy .xls via xlrd)
+# --------------------------------------------------------------------------- #
+def _stringify_cell(value: Any) -> str:
+    """Render an Excel cell value as the trimmed string a CSV would contain."""
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "TRUE" if value else "FALSE"
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value).strip()
+
+
+def _read_xlsx_rows(content: bytes) -> list[list[Any]]:
+    try:
+        import openpyxl  # noqa: WPS433 (lazy import; optional dependency)
+    except ImportError as exc:  # pragma: no cover - surfaced to the user
+        raise ValueError(
+            "Reading .xlsx files requires the 'openpyxl' package "
+            "(add it via requirements.txt)."
+        ) from exc
+    wb = openpyxl.load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+    try:
+        ws = wb.active
+        return [list(row) for row in ws.iter_rows(values_only=True)]
+    finally:
+        wb.close()
+
+
+def _read_xls_rows(content: bytes) -> list[list[Any]]:
+    try:
+        import xlrd  # noqa: WPS433 (lazy import; optional dependency)
+    except ImportError as exc:  # pragma: no cover - surfaced to the user
+        raise ValueError(
+            "Reading legacy .xls files requires the 'xlrd' package "
+            "(add it via requirements.txt)."
+        ) from exc
+    book = xlrd.open_workbook(file_contents=content)
+    sheet = book.sheet_by_index(0)
+    return [sheet.row_values(r) for r in range(sheet.nrows)]
+
+
+def parse_excel(content: bytes, filename: str = "") -> list[dict[str, Any]]:
+    name = (filename or "").lower()
+    is_legacy_xls = name.endswith(".xls") or content[:8].startswith(
+        b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+    )
+    rows = _read_xls_rows(content) if is_legacy_xls else _read_xlsx_rows(content)
+
+    # Drop leading fully-empty rows, then treat the first row as the header.
+    rows = [r for r in rows if any(_stringify_cell(c) for c in r)]
+    if not rows:
+        return []
+    headers = [_stringify_cell(c) for c in rows[0]]
+
+    dict_rows: list[dict[str, Any]] = []
+    for r in rows[1:]:
+        row: dict[str, Any] = {}
+        for i, header in enumerate(headers):
+            if header:
+                row[header] = _stringify_cell(r[i]) if i < len(r) else ""
+        dict_rows.append(row)
+    return _rows_to_records(headers, dict_rows)
 
 
 # --------------------------------------------------------------------------- #
@@ -324,8 +416,29 @@ def detect_format(filename: str, content: str) -> str:
     return "csv"
 
 
+_XLSX_MAGIC = b"PK\x03\x04"
+_XLS_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+
+
+def _looks_like_excel(name: str, content: bytes) -> bool:
+    if name.endswith((".xlsx", ".xlsm", ".xltx", ".xls")):
+        return True
+    head = content[:8]
+    if head.startswith(_XLS_MAGIC):
+        return True
+    # .xlsx is a zip; only treat zip content as Excel when it clearly holds a
+    # workbook, so ordinary .zip uploads aren't misread.
+    if head.startswith(_XLSX_MAGIC) and b"xl/" in content[:4000]:
+        return True
+    return False
+
+
 def parse_file(filename: str, content: bytes | str) -> list[dict[str, Any]]:
-    if isinstance(content, bytes):
+    name = (filename or "").lower()
+    if isinstance(content, (bytes, bytearray)):
+        content = bytes(content)
+        if _looks_like_excel(name, content):
+            return parse_excel(content, name)
         text = content.decode("utf-8-sig", errors="replace")
     else:
         text = content

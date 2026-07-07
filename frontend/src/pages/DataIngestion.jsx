@@ -55,8 +55,8 @@ export default function DataIngestion() {
       <header className="mb-6">
         <h2 className="text-2xl font-semibold text-slate-900">Data Ingestion</h2>
         <p className="text-slate-500 mt-1">
-          Upload RIS, CSV, or BibTeX exports. Multiple files for one database are combined
-          and indexed sequentially.
+          Upload RIS, CSV, BibTeX, or Excel exports. Multiple files for one database are
+          combined and indexed sequentially.
         </p>
       </header>
 
@@ -97,12 +97,12 @@ export default function DataIngestion() {
             <p className="text-slate-600 font-medium">
               Drag &amp; drop files here, or click to browse
             </p>
-            <p className="text-xs text-slate-400 mt-1">.ris · .csv · .tsv · .bib</p>
+            <p className="text-xs text-slate-400 mt-1">.ris · .csv · .tsv · .bib · .xlsx · .xls</p>
             <input
               ref={inputRef}
               type="file"
               multiple
-              accept=".ris,.csv,.tsv,.bib,.bibtex,.txt"
+              accept=".ris,.csv,.tsv,.bib,.bibtex,.txt,.xlsx,.xlsm,.xls"
               className="hidden"
               onChange={(e) => onPick(e.target.files)}
             />

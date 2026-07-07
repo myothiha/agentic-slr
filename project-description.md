@@ -11,7 +11,7 @@ A web interface (built with React and FastAPI) will be implemented to support th
 - **Dynamic Highlighting**: An agent converts the keyword string into deterministic matching rules to automatically highlight relevant keywords across papers in the UI.
 
 ## 2. Data Ingestion
-- An upload form to ingest lists of papers extracted from multiple databases. 
+- An upload form to ingest lists of papers extracted from multiple databases. Supported formats: RIS, CSV/TSV, BibTeX, and Excel (`.xlsx`, `.xlsm`, and legacy `.xls`).
 - If multiple files are uploaded for a single database, they are combined into one unified dataset for that database.
 - The raw data is converted into a uniform **JSON format** (one file per database) and each paper is given a sequential index (e.g., `IEEE-001`) for traceability.
 - **Retain original files**: The original uploaded files (CSV, Excel, etc.) are also kept on the server (only the latest upload batch per database is retained) and can be downloaded again from the per-database raw paper page.

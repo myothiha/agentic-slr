@@ -54,9 +54,12 @@ semi-automated agentic workflow for a systematic literature review process.
   fully deterministic fallback so highlighting always works offline. Compiled
   rules (`terms`, `patterns`, `source`, `compiled_at`) are written to
   `metadata.json`.
-- **Data Parsers** (`backend/parsers.py`) ✅ — normalize **RIS, CSV, and BibTeX**
-  exports into a uniform schema (BibTeX added beyond the original RIS/CSV plan).
-  CSV uses header aliasing to handle Scopus/WoS/IEEE column variations.
+- **Data Parsers** (`backend/parsers.py`) ✅ — normalize **RIS, CSV, BibTeX, and
+  Excel** exports into a uniform schema (BibTeX + Excel added beyond the original
+  RIS/CSV plan). CSV uses header aliasing to handle Scopus/WoS/IEEE column
+  variations. Excel (`.xlsx`/`.xlsm` via `openpyxl`, legacy `.xls` via `xlrd`) is
+  detected by extension/magic bytes before text decoding, then its header row +
+  data rows reuse the same header-aliasing path as CSV (`_rows_to_records`).
 - **Combining files** ✅ — multiple uploads for one database are appended into
   that database's single JSON file.
 - **Indexing** ✅ — each paper gets a sequential, traceable index per database
@@ -93,7 +96,14 @@ semi-automated agentic workflow for a systematic literature review process.
     source) with multi-term AND matching. Rows expand to show abstract, keywords,
     venue, and URL. Pagination has a per-page selector (10/20/50/100, **default
     20**). An **"Original uploaded files"** panel lists the retained raw uploads
-    (CSV/Excel/etc.) with size and a **Download** link per file.
+    (CSV/Excel/etc.) with size and a **Download** link per file. A **"Papers by
+    year"** panel shows per-year counts as horizontal bars; for databases whose
+    exports carry an early-access field (WoS `Document Type` = "Early Access",
+    Scopus `Publication Stage` = "Article in press"), an **Include early-access
+    papers** toggle appears — turning it off excludes those papers so the chart
+    matches the source's "final publication year" view. The flag is derived by
+    `parsers.derive_early_access()`, stored on ingest, and backfilled from `raw`
+    on read for pre-existing data.
   - **Retained raw uploads** ✅ — the original upload batch is stored under
     `data/00_raw_uploads/<db_id>/` (latest batch only; a new ingest replaces the
     prior files, and emptying/removing a database deletes them). Served via

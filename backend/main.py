@@ -38,6 +38,7 @@ from . import (
     dedup_service,
     ingestion,
     page_filter_service,
+    parsers,
     screening_service,
     storage,
 )
@@ -164,7 +165,12 @@ async def ingest(db_id: str, files: list[UploadFile] = File(...)):
 
 @app.get("/api/papers/{db_id}")
 def get_papers(db_id: str):
-    return storage.load_papers(db_id)
+    papers = storage.load_papers(db_id)
+    # Backfill the early_access flag for papers ingested before it existed.
+    for p in papers:
+        if "early_access" not in p:
+            p["early_access"] = parsers.derive_early_access(p.get("raw"))
+    return papers
 
 
 @app.delete("/api/papers/{db_id}")

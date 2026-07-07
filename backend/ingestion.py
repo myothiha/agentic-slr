@@ -111,6 +111,7 @@ def ingest_files(
                 "doi": doi,
                 "venue": rec.get("venue", ""),
                 "url": rec.get("url", ""),
+                "early_access": rec.get("early_access", False),
                 "source_file": filename,
                 "raw": rec.get("raw", {}),
             }

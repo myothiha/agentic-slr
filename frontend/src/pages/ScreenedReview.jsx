@@ -27,6 +27,8 @@ export default function ScreenedReview() {
   const [error, setError] = useState(null);
   const [labelFilter, setLabelFilter] = useState(new Set());
   const [statusFilter, setStatusFilter] = useState(new Set());
+  const [yearFilter, setYearFilter] = useState("");
+  const [yearSort, setYearSort] = useState(null); // null | "asc" | "desc"
   const [perPage, setPerPage] = useState(20);
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState(null);
@@ -45,14 +47,38 @@ export default function ScreenedReview() {
     load();
   }, []);
 
+  // Distinct years for the filter dropdown (newest first, unknown last).
+  const years = useMemo(() => {
+    const set = new Set();
+    for (const p of papers || []) set.add(p.year || "Unknown");
+    const known = [...set].filter((y) => y !== "Unknown").sort((a, b) => b - a);
+    return set.has("Unknown") ? [...known, "Unknown"] : known;
+  }, [papers]);
+
   const filtered = useMemo(() => {
     if (!papers) return [];
-    return papers.filter((p) => matchesScreeningFilters(p, labelFilter, statusFilter));
-  }, [papers, labelFilter, statusFilter]);
+    const matchesYear = (p) => {
+      if (!yearFilter) return true;
+      if (yearFilter === "Unknown") return !p.year;
+      return String(p.year) === yearFilter;
+    };
+    let list = papers.filter(
+      (p) => matchesScreeningFilters(p, labelFilter, statusFilter) && matchesYear(p)
+    );
+    if (yearSort) {
+      list = [...list].sort((a, b) => {
+        if (a.year == null && b.year == null) return 0;
+        if (a.year == null) return 1; // unknown years always last
+        if (b.year == null) return -1;
+        return yearSort === "asc" ? a.year - b.year : b.year - a.year;
+      });
+    }
+    return list;
+  }, [papers, labelFilter, statusFilter, yearFilter, yearSort]);
 
   useEffect(() => {
     setPage(1);
-  }, [labelFilter, statusFilter, perPage]);
+  }, [labelFilter, statusFilter, yearFilter, yearSort, perPage]);
 
   if (error) return <ErrorBox message={error} />;
   if (!papers) return <p className="text-slate-500">Loading…</p>;
@@ -104,20 +130,37 @@ export default function ScreenedReview() {
           statusFilter={statusFilter}
           setStatusFilter={setStatusFilter}
           right={
-            <label className="flex items-center gap-2 text-sm text-slate-600">
-              Per page
-              <select
-                className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm"
-                value={perPage}
-                onChange={(e) => setPerPage(Number(e.target.value))}
-              >
-                {[10, 20, 50, 100].map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2 text-sm text-slate-600">
+                Year
+                <select
+                  className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm"
+                  value={yearFilter}
+                  onChange={(e) => setYearFilter(e.target.value)}
+                >
+                  <option value="">All years</option>
+                  {years.map((y) => (
+                    <option key={y} value={String(y)}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex items-center gap-2 text-sm text-slate-600">
+                Per page
+                <select
+                  className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm"
+                  value={perPage}
+                  onChange={(e) => setPerPage(Number(e.target.value))}
+                >
+                  {[10, 20, 50, 100].map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
           }
         />
       </div>
@@ -128,7 +171,20 @@ export default function ScreenedReview() {
             <tr>
               <th className="px-3 py-3">Title</th>
               <th className="px-3 py-3">Author</th>
-              <th className="px-3 py-3">Year</th>
+              <th className="px-3 py-3">
+                <button
+                  onClick={() =>
+                    setYearSort((s) => (s === "desc" ? "asc" : s === "asc" ? null : "desc"))
+                  }
+                  className="flex items-center gap-1 uppercase text-slate-500 hover:text-slate-700"
+                  title="Sort by publication year"
+                >
+                  Year
+                  <span className="text-[10px]">
+                    {yearSort === "asc" ? "▲" : yearSort === "desc" ? "▼" : "⇅"}
+                  </span>
+                </button>
+              </th>
               <th className="px-3 py-3">AI label</th>
               <th className="px-3 py-3">Label</th>
               <th className="px-3 py-3">Status</th>

@@ -228,6 +228,54 @@ def _overview(papers, tvals, bvals, min_count, top_is_year=False):
     }
 
 
+def papers_for(filters: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Papers matching ALL of the given {dimension, unit, value} filters (AND).
+
+    Used for click drill-down: e.g. one filter (a top value) from the overview,
+    or two filters (top value + breakdown value) from a per-value chart.
+    """
+    state = tagging_service.snapshot()
+    fields = {f["dimension"] for f in filters if f.get("dimension") != YEAR_FIELD}
+    cmaps = _cat_maps(state, fields)
+    out = []
+    for p in state["papers"].values():
+        if all(
+            f.get("value") in _paper_values(state, f["dimension"], f.get("unit", "category"), p, cmaps)
+            for f in filters
+        ):
+            out.append({
+                "index": p.get("index"), "title": p.get("title", ""),
+                "year": p.get("year"), "database": p.get("database", ""),
+            })
+    out.sort(key=lambda r: r["index"] or "")
+    return out
+
+
+def papers_detail(filters: list[dict[str, Any]]) -> dict[str, Any]:
+    """Full info (abstract, per-dimension tags + evidence) for papers matching
+    ALL filters — for the click-through detail page."""
+    state = tagging_service.snapshot()
+    fields = {f["dimension"] for f in filters if f.get("dimension") != YEAR_FIELD}
+    cmaps = _cat_maps(state, fields)
+    matched = [
+        p for p in state["papers"].values()
+        if all(
+            f.get("value") in _paper_values(state, f["dimension"], f.get("unit", "category"), p, cmaps)
+            for f in filters
+        )
+    ]
+    matched.sort(key=lambda p: p.get("index") or "")
+    return {
+        "dimensions": [{"field": d["field"], "name": d["name"]} for d in state["dimensions"]],
+        "tag_descriptions": {d["field"]: d.get("tag_descriptions", {}) for d in state["dimensions"]},
+        "papers": [{
+            "index": p.get("index"), "title": p.get("title", ""), "year": p.get("year"),
+            "database": p.get("database", ""), "abstract": p.get("abstract", ""),
+            "tags": p.get("tags", {}), "evidence": p.get("evidence", {}),
+        } for p in matched],
+    }
+
+
 # --------------------------------------------------------------------------- #
 # Saved views
 # --------------------------------------------------------------------------- #

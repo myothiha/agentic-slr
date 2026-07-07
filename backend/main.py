@@ -592,6 +592,20 @@ def analysis_compute(config: AnalysisConfig):
     return analysis_service.compute(config.model_dump())
 
 
+class PapersForRequest(BaseModel):
+    filters: list[dict] = []
+
+
+@app.post("/api/analysis/papers")
+def analysis_papers(payload: PapersForRequest):
+    return analysis_service.papers_for(payload.filters)
+
+
+@app.post("/api/analysis/papers/detail")
+def analysis_papers_detail(payload: PapersForRequest):
+    return analysis_service.papers_detail(payload.filters)
+
+
 @app.get("/api/analysis/views")
 def analysis_list_views():
     return analysis_service.list_views()

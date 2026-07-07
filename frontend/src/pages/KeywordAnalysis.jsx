@@ -33,6 +33,14 @@ export default function KeywordAnalysis() {
   const [page, setPage] = useState(0);
   const PAGE = 20;
 
+  const unitOf = (f, u) => (f === YEAR ? "year" : u);
+
+  // Open the detailed paper list (abstract + tags) in a new browser tab.
+  const openPapers = (title, filters) => {
+    const qs = `title=${encodeURIComponent(title)}&f=${encodeURIComponent(JSON.stringify(filters))}`;
+    window.open(`/analysis/papers?${qs}`, "_blank");
+  };
+
   useEffect(() => {
     Promise.all([api.getAnalysisDimensions(), api.listAnalysisViews()])
       .then(([d, v]) => {
@@ -183,6 +191,15 @@ export default function KeywordAnalysis() {
             )}
           </div>
           {topField && (
+            <div className="mt-2 flex items-center gap-2 text-xs">
+              <button onClick={() => setTopValues(topOptions.map((o) => o.label))}
+                className="rounded border border-slate-300 px-2 py-0.5 hover:bg-slate-50">Select all</button>
+              <button onClick={() => setTopValues([])}
+                className="rounded border border-slate-300 px-2 py-0.5 hover:bg-slate-50">Clear</button>
+              <span className="text-slate-400">{topValues.length} selected</span>
+            </div>
+          )}
+          {topField && (
             <div className="mt-2 flex max-h-32 flex-wrap gap-1.5 overflow-auto">
               {topOptions.map((o) => (
                 <button key={o.label} onClick={() => toggleTopValue(o.label)}
@@ -240,11 +257,14 @@ export default function KeywordAnalysis() {
             </h3>
             <ResponsiveContainer width="100%" height={Math.max(260, (result.overview?.dim1_bars.length || 1) * 28)}>
               <BarChart data={(result.overview?.dim1_bars || []).map((b) => ({ name: b.label, value: b.count }))}
-                layout="vertical" margin={{ left: 8, right: 16 }}>
+                layout="vertical" margin={{ left: 8, right: 16 }}
+                onClick={(e) => e?.activeLabel && openPapers(
+                  `${dimOf(topField)?.name}: ${e.activeLabel}`,
+                  [{ dimension: topField, unit: unitOf(topField, topUnit), value: e.activeLabel }])}>
                 <XAxis type="number" tick={{ fontSize: 11 }} />
                 <YAxis type="category" dataKey="name" width={180} tick={{ fontSize: 11 }} />
                 <Tooltip />
-                <Bar dataKey="value" fill="#3b82f6" />
+                <Bar dataKey="value" fill="#3b82f6" cursor="pointer" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -257,25 +277,42 @@ export default function KeywordAnalysis() {
           <div className="grid gap-4 grid-cols-1">
             {result.panels.map((p, pi) => (
               <div key={p.value} className="rounded-lg border border-slate-200 bg-white p-4">
-                <h3 className="text-sm font-semibold text-slate-800">{p.value}</h3>
-                <p className="text-xs text-slate-400">{p.paper_count} papers</p>
+                <button
+                  onClick={() => openPapers(
+                    `${dimOf(topField)?.name}: ${p.value}`,
+                    [{ dimension: topField, unit: unitOf(topField, topUnit), value: p.value }])}
+                  className="text-left"
+                  title="Open the paper list for this value"
+                >
+                  <h3 className="text-sm font-semibold text-blue-700 hover:underline">{p.value}</h3>
+                  <p className="text-xs text-blue-600 hover:underline">{p.paper_count} papers →</p>
+                </button>
                 {p.bars.length === 0 ? (
                   <p className="mt-6 text-center text-xs text-slate-400">No data.</p>
                 ) : (
                   <ResponsiveContainer width="100%" height={Math.max(220, p.bars.length * 22)}>
                     {chart === "pie" ? (
                       <PieChart>
-                        <Pie data={chartData(p.bars)} dataKey="value" nameKey="name" outerRadius={90} label={(e) => e.name}>
+                        <Pie data={chartData(p.bars)} dataKey="value" nameKey="name" outerRadius={110}
+                          label={(e) => e.name} cursor="pointer"
+                          onClick={(d) => d?.name && openPapers(
+                            `${p.value} → ${d.name}`,
+                            [{ dimension: topField, unit: unitOf(topField, topUnit), value: p.value },
+                             { dimension: brkField, unit: unitOf(brkField, brkUnit), value: d.name }])}>
                           {p.bars.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                         </Pie>
                         <Tooltip />
                       </PieChart>
                     ) : (
-                      <BarChart data={chartData(p.bars)} layout="vertical" margin={{ left: 8, right: 16 }}>
+                      <BarChart data={chartData(p.bars)} layout="vertical" margin={{ left: 8, right: 16 }}
+                        onClick={(e) => e?.activeLabel && openPapers(
+                          `${p.value} → ${e.activeLabel}`,
+                          [{ dimension: topField, unit: unitOf(topField, topUnit), value: p.value },
+                           { dimension: brkField, unit: unitOf(brkField, brkUnit), value: e.activeLabel }])}>
                         <XAxis type="number" tick={{ fontSize: 11 }} />
-                        <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 11 }} />
+                        <YAxis type="category" dataKey="name" width={180} tick={{ fontSize: 11 }} />
                         <Tooltip />
-                        <Bar dataKey="value" fill={COLORS[pi % COLORS.length]} />
+                        <Bar dataKey="value" fill={COLORS[pi % COLORS.length]} cursor="pointer" />
                       </BarChart>
                     )}
                   </ResponsiveContainer>

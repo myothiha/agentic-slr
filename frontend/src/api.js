@@ -152,6 +152,18 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(config),
     }),
+  getAnalysisPapers: (filters) =>
+    request("/analysis/papers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filters }),
+    }),
+  getAnalysisPaperDetail: (filters) =>
+    request("/analysis/papers/detail", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filters }),
+    }),
   listAnalysisViews: () => request("/analysis/views"),
   createAnalysisView: (payload) =>
     request("/analysis/views", {

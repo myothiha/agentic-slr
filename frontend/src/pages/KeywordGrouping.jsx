@@ -67,9 +67,15 @@ export default function KeywordGrouping() {
     }
   };
 
+  // `group.members` from the categories endpoint are {tag, paper_count} objects;
+  // the API expects a plain list of tag strings.
+  const memberTags = (group) => group.members.map((m) => (typeof m === "string" ? m : m.tag));
+
   const removeMember = async (group, tag) => {
     try {
-      await api.updateTaggingGroup(field, group.id, { members: group.members.filter((m) => m !== tag) });
+      await api.updateTaggingGroup(field, group.id, {
+        members: memberTags(group).filter((t) => t !== tag),
+      });
       await loadDim(field);
     } catch (e) {
       alert(e.message);
@@ -78,7 +84,9 @@ export default function KeywordGrouping() {
 
   const addMembers = async (group, tags) => {
     try {
-      await api.updateTaggingGroup(field, group.id, { members: [...group.members, ...tags] });
+      await api.updateTaggingGroup(field, group.id, {
+        members: [...memberTags(group), ...tags],
+      });
       await loadDim(field);
     } catch (e) {
       alert(e.message);

@@ -11,6 +11,10 @@ class Database(BaseModel):
     name: str
     prefix: str
     priority: int = 100
+    # Optional institutional proxy host suffix (EZproxy hostname-remapping style),
+    # e.g. "mediaproxy.imtbs-tsp.eu". When set, download URLs for this database are
+    # rewritten host.example.org -> host-example-org.<proxy_suffix>.
+    proxy_suffix: Optional[str] = None
 
 
 class HighlightRules(BaseModel):
@@ -43,6 +47,15 @@ class DatabaseCreate(BaseModel):
     name: str
     prefix: Optional[str] = None
     priority: Optional[int] = None
+
+
+class DatabaseUpdate(BaseModel):
+    """Partial update for an existing database's config."""
+    name: Optional[str] = None
+    prefix: Optional[str] = None
+    priority: Optional[int] = None
+    # Empty string clears the proxy; None leaves it unchanged.
+    proxy_suffix: Optional[str] = None
 
 
 class Paper(BaseModel):

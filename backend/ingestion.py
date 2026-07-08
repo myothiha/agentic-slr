@@ -179,6 +179,7 @@ def database_summaries() -> list[dict[str, Any]]:
             "name": db["name"],
             "prefix": db["prefix"],
             "priority": db.get("priority", 100),
+            "proxy_suffix": db.get("proxy_suffix"),
             "paper_count": len(papers),
             "index_range": _index_range(papers, db["prefix"]),
             "source_files": source_files,

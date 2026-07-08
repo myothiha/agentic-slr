@@ -45,7 +45,7 @@ from . import (
     storage,
     tagging_service,
 )
-from .models import ContextUpdate, DatabaseCreate, ScreeningLabel
+from .models import ContextUpdate, DatabaseCreate, DatabaseUpdate, ScreeningLabel
 
 app = FastAPI(title="Agentic SLR API", version="0.1.0")
 
@@ -134,6 +134,25 @@ def add_database(payload: DatabaseCreate):
     metadata["databases"].append(new_db)
     storage.save_metadata(metadata)
     return new_db
+
+
+@app.patch("/api/databases/{db_id}")
+def update_database(db_id: str, payload: DatabaseUpdate):
+    metadata = storage.load_metadata()
+    db = next((d for d in metadata["databases"] if d["id"] == db_id), None)
+    if db is None:
+        raise HTTPException(status_code=404, detail="Database not found.")
+    if payload.name is not None:
+        db["name"] = payload.name.strip()
+    if payload.prefix is not None:
+        db["prefix"] = payload.prefix.strip().upper()
+    if payload.priority is not None:
+        db["priority"] = payload.priority
+    if payload.proxy_suffix is not None:
+        # Empty/whitespace clears the proxy (helper returns None).
+        db["proxy_suffix"] = full_text_service.clean_proxy_suffix(payload.proxy_suffix)
+    storage.save_metadata(metadata)
+    return db
 
 
 @app.delete("/api/databases/{db_id}")

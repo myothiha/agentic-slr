@@ -22,7 +22,8 @@
       "id": "ieee",
       "name": "IEEE Xplore",
       "prefix": "IEEE",
-      "priority": 1
+      "priority": 1,
+      "proxy_suffix": "ieeexplore-ieee-org.mediaproxy.imtbs-tsp.eu"
     },
     {
       "id": "acm",

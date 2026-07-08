@@ -37,6 +37,12 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     }),
+  updateDatabase: (id, payload) =>
+    request(`/databases/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
   deleteDatabase: (id) => request(`/databases/${id}`, { method: "DELETE" }),
 
   // Ingestion / papers

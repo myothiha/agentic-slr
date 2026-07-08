@@ -308,11 +308,12 @@ function PaperActions({ paper, onUpload, onPreview, onDelete }) {
         </>
       ) : (
         <>
-          {paper.pdf_url && (
+          {(paper.download_url || paper.pdf_url) && (
             <a
-              href={paper.pdf_url}
+              href={paper.download_url || paper.pdf_url}
               target="_blank"
               rel="noreferrer"
+              title={paper.download_url || paper.pdf_url}
               className="rounded border border-blue-300 bg-white px-2 py-0.5 text-xs text-blue-600 hover:bg-blue-50"
             >
               Download ↗

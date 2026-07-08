@@ -56,6 +56,27 @@ export default function DatabaseManagement() {
     }
   };
 
+  const editProxy = async (db) => {
+    const next = window.prompt(
+      `Institutional proxy host suffix for "${db.name}" (optional).\n\n` +
+        "EZproxy hostname-remapping style. Enter EITHER just the suffix:\n" +
+        "  mediaproxy.imtbs-tsp.eu\n" +
+        "OR the full proxied host copied from your browser:\n" +
+        "  ieeexplore-ieee-org.mediaproxy.imtbs-tsp.eu\n\n" +
+        "Download links are rewritten, e.g.\n" +
+        "  ieeexplore.ieee.org → ieeexplore-ieee-org.mediaproxy.imtbs-tsp.eu\n\n" +
+        "Leave blank to clear.",
+      db.proxy_suffix || ""
+    );
+    if (next === null) return; // cancelled
+    try {
+      await api.updateDatabase(db.id, { proxy_suffix: next.trim() });
+      await load();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
   const remove = async (db) => {
     if (
       !confirm(
@@ -87,6 +108,7 @@ export default function DatabaseManagement() {
               <th className="px-4 py-3">Priority</th>
               <th className="px-4 py-3">Name</th>
               <th className="px-4 py-3">Prefix</th>
+              <th className="px-4 py-3">Proxy</th>
               <th className="px-4 py-3">Papers</th>
               <th className="px-4 py-3">Index range</th>
               <th className="px-4 py-3"></th>
@@ -102,6 +124,15 @@ export default function DatabaseManagement() {
                     {db.prefix}
                   </span>
                 </td>
+                <td className="px-4 py-3">
+                  {db.proxy_suffix ? (
+                    <span className="font-mono text-xs text-slate-600" title={db.proxy_suffix}>
+                      {db.proxy_suffix}
+                    </span>
+                  ) : (
+                    <span className="text-slate-400">—</span>
+                  )}
+                </td>
                 <td className="px-4 py-3">{db.paper_count}</td>
                 <td className="px-4 py-3 text-slate-400">{db.index_range || "—"}</td>
                 <td className="px-4 py-3">
@@ -111,6 +142,12 @@ export default function DatabaseManagement() {
                       className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
                     >
                       Check Raw paper list
+                    </button>
+                    <button
+                      onClick={() => editProxy(db)}
+                      className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Edit proxy
                     </button>
                     <button
                       onClick={() => empty(db)}

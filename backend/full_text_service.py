@@ -44,11 +44,12 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Any, Optional
+from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 from pypdf import PdfReader
 
-from . import paths, screening_service
+from . import paths, screening_service, storage
 
 _lock = threading.Lock()
 
@@ -67,7 +68,84 @@ OPENALEX_TIMEOUT = 20.0
 DOWNLOAD_TIMEOUT = 45.0
 MAX_DOWNLOAD_WORKERS = 6
 
-_RECORD_FIELDS = ("index", "title", "year", "database", "doi", "url")
+# A browser-like User-Agent helps with publisher hosts / institutional proxies
+# that reject the default python-httpx agent.
+BROWSER_UA = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+)
+_HTTP_HEADERS = {"User-Agent": BROWSER_UA}
+
+_RECORD_FIELDS = ("index", "title", "year", "database", "database_id", "doi", "url")
+
+
+# --------------------------------------------------------------------------- #
+# Institutional proxy (EZproxy hostname-remapping style)
+# --------------------------------------------------------------------------- #
+def clean_proxy_suffix(suffix: Optional[str]) -> Optional[str]:
+    """Normalise a configured proxy suffix, or None if effectively empty.
+
+    Accepts values like "mediaproxy.imtbs-tsp.eu", ".mediaproxy.imtbs-tsp.eu",
+    or "https://mediaproxy.imtbs-tsp.eu/" and returns the bare host suffix.
+    """
+    if not suffix:
+        return None
+    s = suffix.strip()
+    if "://" in s:
+        s = s.split("://", 1)[1]
+    s = s.strip().strip("/").strip(".")
+    return s or None
+
+
+def proxy_rewrite(url: Optional[str], suffix: Optional[str]) -> Optional[str]:
+    """Rewrite a URL's host through an EZproxy-style suffix.
+
+    e.g. https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=9670669  with
+    suffix "mediaproxy.imtbs-tsp.eu" ->
+         https://ieeexplore-ieee-org.mediaproxy.imtbs-tsp.eu/stamp/stamp.jsp?arnumber=9670669
+    Returns the URL unchanged when no suffix or no host is present.
+    """
+    suffix = clean_proxy_suffix(suffix)
+    if not url or not suffix:
+        return url
+    parts = urlsplit(url)
+    host = parts.hostname
+    if not host:
+        return url
+    dashed = host.replace(".", "-")
+    # Accept either a bare suffix ("mediaproxy.imtbs-tsp.eu") or a full proxied
+    # host that already contains the rewritten hostname
+    # ("ieeexplore-ieee-org.mediaproxy.imtbs-tsp.eu") — don't double the prefix.
+    if suffix == dashed or suffix.startswith(dashed + "."):
+        new_host = suffix
+    else:
+        new_host = dashed + "." + suffix
+    if parts.port:
+        new_host = f"{new_host}:{parts.port}"
+    return urlunsplit((parts.scheme or "https", new_host, parts.path,
+                       parts.query, parts.fragment))
+
+
+def _proxy_map() -> dict[str, Optional[str]]:
+    """Map database_id -> configured proxy suffix (only non-empty ones)."""
+    out: dict[str, Optional[str]] = {}
+    for db in storage.load_metadata().get("databases", []):
+        suffix = clean_proxy_suffix(db.get("proxy_suffix"))
+        if suffix:
+            out[db["id"]] = suffix
+    return out
+
+
+def _download_url_for(rec: dict[str, Any], proxy_map: dict[str, Optional[str]]) -> Optional[str]:
+    """Best manual-download URL for a paper: the stored publisher url routed
+    through the database's proxy when configured, else the raw url, else a DOI link.
+    """
+    suffix = proxy_map.get(rec.get("database_id"))
+    raw_url = rec.get("url")
+    if raw_url:
+        return proxy_rewrite(raw_url, suffix) if suffix else raw_url
+    doi = _clean_doi(rec.get("doi"))
+    return f"https://doi.org/{doi}" if doi else None
 
 
 # --------------------------------------------------------------------------- #
@@ -203,10 +281,20 @@ def _counts(records: dict[str, Any]) -> dict[str, int]:
 
 
 def get_dashboard() -> dict[str, Any]:
-    """Reconcile, then return the ordered records + counts + include source."""
+    """Reconcile, then return the ordered records + counts + include source.
+
+    Each paper gets a transient ``download_url`` (the stored publisher url routed
+    through the database's institutional proxy when configured) for the UI's
+    manual download link. It is computed from live config, not persisted.
+    """
     state = sync_included_papers()
     records = state["records"]
-    ordered = [records[k] for k in sorted(records.keys())]
+    proxy_map = _proxy_map()
+    ordered = []
+    for k in sorted(records.keys()):
+        rec = dict(records[k])
+        rec["download_url"] = _download_url_for(rec, proxy_map)
+        ordered.append(rec)
     return {
         "papers": ordered,
         "counts": _counts(records),
@@ -301,69 +389,104 @@ def _resolve_oa_url(doi: str, client: httpx.Client) -> Optional[str]:
     return oa.get("oa_url")
 
 
-def auto_download_oa(index: str, client: Optional[httpx.Client] = None) -> dict[str, Any]:
-    """Resolve + download an OA PDF for one paper, then extract its text.
+def _fetch_pdf_bytes(url: str, client: httpx.Client) -> tuple[Optional[bytes], str]:
+    """GET a URL and return (pdf_bytes, "") if it's a real PDF, else (None, reason)."""
+    try:
+        r = client.get(url, timeout=DOWNLOAD_TIMEOUT,
+                        headers={"Accept": "application/pdf,*/*"})
+        r.raise_for_status()
+    except httpx.HTTPError as e:
+        return None, f"download_failed: {type(e).__name__}"
+    # Landing pages / proxy login pages return HTML, not a PDF.
+    if not r.content[:5].startswith(b"%PDF"):
+        return None, "not_a_pdf"
+    return r.content, ""
 
-    Stores the resolved OA url on the record (even on failure) so the UI can
-    still offer a manual download link.
+
+def _proxy_download_url(rec: dict[str, Any], proxy_map: dict[str, Optional[str]]) -> Optional[str]:
+    """Proxied publisher url for auto-download — only when the paper's database
+    has a proxy configured AND the paper has a stored url."""
+    suffix = proxy_map.get(rec.get("database_id"))
+    if suffix and rec.get("url"):
+        return proxy_rewrite(rec["url"], suffix)
+    return None
+
+
+def auto_download_oa(index: str, client: Optional[httpx.Client] = None) -> dict[str, Any]:
+    """Fetch a PDF for one paper, then extract its text.
+
+    Tries sources in order:
+      1. Open Access via OpenAlex (no auth needed) — when a DOI is present.
+      2. The institutional proxy URL (best-effort) — when the paper's database
+         has a ``proxy_suffix`` and the paper has a stored url. This may hit a
+         login page if the proxy needs an authenticated session, in which case
+         it fails gracefully and the manual proxied link stays available.
     """
     state = _read()
     rec = state["records"].get(index)
     if rec is None:
         return {}
     doi = _clean_doi(rec.get("doi"))
-    if not doi:
+    proxy_map = _proxy_map()
+    proxy_url = _proxy_download_url(rec, proxy_map)
+
+    if not doi and not proxy_url:
         return _update_record(index, status="error", error="no_doi") or {}
 
     own_client = client is None
-    client = client or httpx.Client(timeout=OPENALEX_TIMEOUT, follow_redirects=True)
+    client = client or httpx.Client(timeout=OPENALEX_TIMEOUT, follow_redirects=True,
+                                    headers=_HTTP_HEADERS)
     try:
-        try:
-            pdf_url = _resolve_oa_url(doi, client)
-        except httpx.HTTPError as e:
-            return _update_record(index, status="error",
-                                  error=f"openalex_failed: {type(e).__name__}") or {}
-        if not pdf_url:
+        candidates: list[tuple[str, str]] = []  # (source_label, url)
+        if doi:
+            try:
+                oa_url = _resolve_oa_url(doi, client)
+            except httpx.HTTPError:
+                oa_url = None
+            if oa_url:
+                candidates.append(("oa", oa_url))
+        if proxy_url:
+            candidates.append(("proxy", proxy_url))
+
+        if not candidates:
             return _update_record(index, status="error", error="no_oa_pdf") or {}
 
-        try:
-            r = client.get(pdf_url, timeout=DOWNLOAD_TIMEOUT)
-            r.raise_for_status()
-            content = r.content
-        except httpx.HTTPError as e:
-            return _update_record(index, status="error", pdf_url=pdf_url,
-                                  error=f"download_failed: {type(e).__name__}") or {}
-
-        # Many oa_url values are landing pages, not the PDF itself.
-        if not content[:5].startswith(b"%PDF"):
-            return _update_record(index, status="error", pdf_url=pdf_url,
-                                  error="not_a_pdf") or {}
-
-        _ensure_dirs()
-        _pdf_path(index).write_bytes(content)
-        _update_record(index, status="downloading", source="oa", pdf_url=pdf_url,
-                       error=None)
-        return extract_text_from_pdf(index)
+        last_err = "no_oa_pdf"
+        for source_label, url in candidates:
+            content, reason = _fetch_pdf_bytes(url, client)
+            if content:
+                _ensure_dirs()
+                _pdf_path(index).write_bytes(content)
+                _update_record(index, status="downloading", source=source_label,
+                               pdf_url=url, error=None)
+                return extract_text_from_pdf(index)
+            last_err = reason
+        return _update_record(index, status="error", pdf_url=candidates[0][1],
+                              error=last_err) or {}
     finally:
         if own_client:
             client.close()
 
 
 def auto_download_oa_batch() -> dict[str, Any]:
-    """Attempt OA download for every 'missing' paper that has a DOI.
+    """Attempt a download for every 'missing' paper that has a DOI or a
+    configured institutional-proxy URL.
 
     Uses a synchronous httpx client per worker inside a thread pool (matching the
     codebase's threading pattern) — no async/thread mixing.
     """
     sync_included_papers()
     state = _read()
+    proxy_map = _proxy_map()
     targets = [
         idx for idx, rec in state["records"].items()
-        if rec.get("status") == "missing" and _clean_doi(rec.get("doi"))
+        if rec.get("status") == "missing"
+        and (_clean_doi(rec.get("doi")) or _proxy_download_url(rec, proxy_map))
     ]
 
     def _work(idx: str) -> str:
-        with httpx.Client(timeout=OPENALEX_TIMEOUT, follow_redirects=True) as c:
+        with httpx.Client(timeout=OPENALEX_TIMEOUT, follow_redirects=True,
+                          headers=_HTTP_HEADERS) as c:
             rec = auto_download_oa(idx, client=c)
         return rec.get("status", "error")
 

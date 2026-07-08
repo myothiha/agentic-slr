@@ -96,8 +96,12 @@ def _pct(bars, total):
     return [100.0 * b["count"] / total if total else 0 for b in bars]
 
 
-def hbar(ax, labels, values, *, color, value_fmt="{:.0f}", pad=0.0):
-    """A single horizontal bar chart, largest value on top."""
+def hbar(ax, labels, values, *, color, value_fmt="{:.0f}", pad=0.0, xmax=None):
+    """A single horizontal bar chart, largest value on top.
+
+    Pass ``xmax`` to fix the x-axis upper limit (shared across panels so bar
+    lengths are directly comparable); otherwise it auto-scales to this chart.
+    """
     y = range(len(labels))
     bars = ax.barh(list(y), values, color=color, height=0.72,
                    edgecolor="white", linewidth=0.6)
@@ -107,13 +111,14 @@ def hbar(ax, labels, values, *, color, value_fmt="{:.0f}", pad=0.0):
     _clean_axes(ax)
     ax.xaxis.grid(True)
     ax.yaxis.grid(False)
-    vmax = max(values) if values else 1
+    limit = xmax if xmax else (max(values) if values else 1) * (1.12 + pad)
+    ref = limit or 1
     for rect, val in zip(bars, values):
-        ax.text(rect.get_width() + vmax * 0.012,
+        ax.text(rect.get_width() + ref * 0.012,
                 rect.get_y() + rect.get_height() / 2,
                 value_fmt.format(val), va="center", ha="left",
                 fontsize=12, color="#333333")
-    ax.set_xlim(0, vmax * (1.12 + pad))
+    ax.set_xlim(0, limit)
     return bars
 
 
@@ -143,7 +148,8 @@ def render_overview(result, meta, out: Path, normalize: bool) -> Path | None:
     return path
 
 
-def render_panel_bar(panel, meta, out: Path, idx: int, normalize: bool) -> Path | None:
+def render_panel_bar(panel, meta, out: Path, idx: int, normalize: bool,
+                     xmax: float | None = None) -> Path | None:
     bars = panel["bars"]
     if not bars:
         return None
@@ -159,7 +165,7 @@ def render_panel_bar(panel, meta, out: Path, idx: int, normalize: bool) -> Path 
     color = PALETTE[idx % len(PALETTE)]
     h = max(2.4, 0.42 * len(labels) + 1.4)
     fig, ax = plt.subplots(figsize=(9, h))
-    hbar(ax, labels, values, color=color, value_fmt=vfmt)
+    hbar(ax, labels, values, color=color, value_fmt=vfmt, xmax=xmax)
     ax.set_xlabel(xlabel)
     ax.set_title(f"{panel['value']}  ·  {panel['paper_count']} papers",
                  loc="left", pad=12)
@@ -205,7 +211,8 @@ def render_panel_pie(panel, meta, out: Path, idx: int, max_slices: int = 10) -> 
     return path
 
 
-def render_grid(result, meta, out: Path, normalize: bool, max_bars: int = 10) -> Path | None:
+def render_grid(result, meta, out: Path, normalize: bool, max_bars: int = 10,
+                xmax: float | None = None) -> Path | None:
     """Small-multiples grid: one mini bar chart per top value on one figure."""
     panels = [p for p in result["panels"] if p["bars"]]
     if not panels:
@@ -223,7 +230,7 @@ def render_grid(result, meta, out: Path, normalize: bool, max_bars: int = 10) ->
         values = ([100.0 * b["count"] / denom for b in bars] if normalize
                   else [b["count"] for b in bars])
         hbar(ax, labels, values, color=PALETTE[i % len(PALETTE)],
-             value_fmt=("{:.0f}%" if normalize else "{:.0f}"))
+             value_fmt=("{:.0f}%" if normalize else "{:.0f}"), xmax=xmax)
         ax.set_title(f"{panel['value']}  ({panel['paper_count']})",
                      loc="left", fontsize=13, pad=6)
         ax.tick_params(labelsize=11)
@@ -262,6 +269,16 @@ def render_view(name: str, config: dict, *, chart: str, normalize: bool) -> list
     out.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
 
+    # Shared x-axis maximum so every per-value bar chart is on the same scale
+    # and can be compared directly (12% headroom for the value labels).
+    def _val(panel, bar):
+        denom = panel.get("paper_count") or 1
+        return 100.0 * bar["count"] / denom if normalize else bar["count"]
+
+    gmax = max((_val(p, b) for p in result["panels"] for b in p["bars"]),
+               default=0)
+    shared_xmax = gmax * 1.12 if gmax else None
+
     p = render_overview(result, meta, out, normalize)
     if p:
         written.append(p)
@@ -269,11 +286,11 @@ def render_view(name: str, config: dict, *, chart: str, normalize: bool) -> list
         if chart == "pie":
             p = render_panel_pie(panel, meta, out, i)
         else:
-            p = render_panel_bar(panel, meta, out, i, normalize)
+            p = render_panel_bar(panel, meta, out, i, normalize, xmax=shared_xmax)
         if p:
             written.append(p)
     if chart != "pie":
-        p = render_grid(result, meta, out, normalize)
+        p = render_grid(result, meta, out, normalize, xmax=shared_xmax)
         if p:
             written.append(p)
     return written

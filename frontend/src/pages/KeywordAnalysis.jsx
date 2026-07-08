@@ -173,7 +173,20 @@ export default function KeywordAnalysis() {
     a.click();
   };
 
-  const chartData = (bars) => bars.map((b) => ({ name: b.label, value: normalize ? b.percent ?? b.count : b.count, count: b.count }));
+  const barValue = (b) => (normalize ? b.percent ?? b.count : b.count);
+  const chartData = (bars) => bars.map((b) => ({ name: b.label, value: barValue(b), count: b.count }));
+
+  // Shared x-axis maximum across all per-value charts, so bars are on the same
+  // scale and can be compared directly. `nice()` rounds up to a clean number.
+  const niceCeil = (v) => {
+    if (!v || v <= 0) return normalize ? 100 : 1;
+    const pow = Math.pow(10, Math.floor(Math.log10(v)));
+    const step = pow <= 2 ? pow / 2 || 1 : pow;
+    return Math.ceil(v / step) * step;
+  };
+  const panelMax = niceCeil(
+    Math.max(0, ...((result?.panels || []).flatMap((p) => (p.bars || []).map(barValue))))
+  );
 
   return (
     <div>
@@ -355,7 +368,7 @@ export default function KeywordAnalysis() {
                             `${p.value} → ${e.activeLabel}`,
                             [{ dimension: topField, unit: unitOf(topField, topUnit), value: p.value },
                              { dimension: brkField, unit: unitOf(brkField, brkUnit), value: e.activeLabel }])}>
-                          <XAxis type="number" tick={{ fontSize: 12, fill: "#475569" }} axisLine={{ stroke: "#cbd5e1" }} tickLine={false} />
+                          <XAxis type="number" domain={[0, panelMax]} allowDataOverflow tick={{ fontSize: 12, fill: "#475569" }} axisLine={{ stroke: "#cbd5e1" }} tickLine={false} />
                           <YAxis type="category" dataKey="name" width={190} tick={{ fontSize: 12, fill: "#334155" }} axisLine={false} tickLine={false} />
                           <Tooltip cursor={{ fill: "rgba(148,163,184,0.12)" }} />
                           <Bar dataKey="value" fill={COLORS[pi % COLORS.length]} radius={[0, 4, 4, 0]} cursor="pointer">

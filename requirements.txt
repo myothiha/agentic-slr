@@ -16,6 +16,10 @@ langchain-google-genai==4.2.5
 # Figure export (scripts/export_keyword_charts.py)
 matplotlib==3.9.2
 
+# Full-text extraction (Phase 3a)
+pypdf==4.2.0      # PDF text extraction (pure-python, no binary deps)
+httpx>=0.28.1     # OpenAlex API + PDF downloads (already present via langchain/google-genai)
+
 # Parsing
 rispy==0.9.0
 bibtexparser==1.4.1

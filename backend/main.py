@@ -37,6 +37,7 @@ from . import (
     analysis_service,
     backup_service,
     dedup_service,
+    full_text_service,
     ingestion,
     page_filter_service,
     parsers,
@@ -188,6 +189,7 @@ def clear_papers(db_id: str, cascade: bool = False):
         dedup_service.clear()
         page_filter_service.clear()
         screening_service.clear()
+        full_text_service.clear()
         tagging_service.clear()
     return {"cleared": db_id, "cascade": cascade}
 
@@ -323,6 +325,52 @@ def screening_reset(index: str):
 
 
 # --------------------------------------------------------------------------- #
+# Full-text extraction (Phase 3a)
+# --------------------------------------------------------------------------- #
+@app.get("/api/full-text")
+def get_full_text():
+    """Reconcile with the Include set and return the dashboard payload."""
+    return full_text_service.get_dashboard()
+
+
+@app.get("/api/full-text/papers/{index}/text")
+def get_full_text_text(index: str):
+    text = full_text_service.get_extracted_text(index)
+    if text is None:
+        raise HTTPException(status_code=404, detail="No extracted text for this paper.")
+    return {"index": index, "text": text, "char_count": len(text)}
+
+
+@app.post("/api/full-text/auto-download")
+def full_text_auto_download():
+    """Batch Open-Access downloader for all 'missing' papers with a DOI."""
+    return full_text_service.auto_download_oa_batch()
+
+
+@app.post("/api/full-text/scan")
+def full_text_scan():
+    """Scan raw_pdfs/ for manually-dropped PDFs and extract them."""
+    return full_text_service.scan_local_pdfs()
+
+
+@app.post("/api/full-text/upload/{index}")
+async def full_text_upload(index: str, file: UploadFile = File(...)):
+    content = await file.read()
+    try:
+        return full_text_service.save_uploaded_pdf(index, content)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.delete("/api/full-text/papers/{index}")
+def full_text_delete(index: str):
+    rec = full_text_service.delete_paper(index)
+    if not rec:
+        raise HTTPException(status_code=404, detail="Paper not found in full-text state.")
+    return rec
+
+
+# --------------------------------------------------------------------------- #
 # Backup & Restore
 # --------------------------------------------------------------------------- #
 @app.get("/api/backups")
@@ -377,6 +425,10 @@ def dashboard():
     screen_total = screen_counts.get("total", 0)
     screen_decided = screen_counts.get("decided", 0)
 
+    ft_counts = full_text_service.get_dashboard().get("counts", {})
+    ft_total = ft_counts.get("total", 0)
+    ft_extracted = ft_counts.get("extracted", 0)
+
     return {
         "title": metadata.get("title", ""),
         "research_questions": metadata.get("research_questions", ""),
@@ -407,8 +459,10 @@ def dashboard():
              "done": dedup_has_run},
             {"key": "02b_page_filter", "label": "Page Filter", "count": pf_included,
              "done": pf_active},
-            {"key": "03_abstract_title_screening", "label": "Screening",
+            {"key": "02c_abstract_title_screening", "label": "Screening",
              "count": screen_decided, "done": screen_total > 0 and screen_decided >= screen_total},
+            {"key": "03a_full_text_extraction", "label": "Full-Text Extraction",
+             "count": ft_extracted, "done": ft_total > 0 and ft_extracted >= ft_total},
         ],
     }
 

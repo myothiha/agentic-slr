@@ -98,6 +98,23 @@ export const api = {
   resetScreening: (index) =>
     request(`/screening/reset/${encodeURIComponent(index)}`, { method: "POST" }),
 
+  // Full-text extraction (Phase 3a)
+  getFullText: () => request("/full-text"),
+  getPaperText: (index) =>
+    request(`/full-text/papers/${encodeURIComponent(index)}/text`),
+  triggerAutoDownload: () => request("/full-text/auto-download", { method: "POST" }),
+  scanLocalPdfs: () => request("/full-text/scan", { method: "POST" }),
+  uploadPdf: (index, file) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request(`/full-text/upload/${encodeURIComponent(index)}`, {
+      method: "POST",
+      body: form,
+    });
+  },
+  deletePdf: (index) =>
+    request(`/full-text/papers/${encodeURIComponent(index)}`, { method: "DELETE" }),
+
   // Keyword tagging (Phase 5) — multiple independent dimensions
   listTaggingDimensions: () => request("/tagging/dimensions"),
   createTaggingDimension: (payload) =>

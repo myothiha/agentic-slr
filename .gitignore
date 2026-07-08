@@ -16,8 +16,14 @@ data/**/*.json
 # Figures
 data/**/*.png
 
+# fulltext files
+data/**/*.pdf
+data/**/*.txt
+
+
 # Backups (zips of the whole project; contain .env)
 backups/
 
 # OS
 .DS_Store
+data/03a_full_text_extraction/extracted_texts/ACM-010.txt

@@ -2,7 +2,7 @@
 
 Screening operates on the deduplicated kept set (data/02_deduplication/). Each
 kept paper gets a screening record; decisions persist to
-data/03_abstract_title_screening/screening_state.json.
+data/02c_abstract_title_screening/screening_state.json.
 
 Modification trail
 ------------------

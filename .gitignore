@@ -13,9 +13,11 @@ frontend/.vite/
 data/**/*.json
 !data/.gitkeep
 
+# Figures
+data/**/*.png
+
 # Backups (zips of the whole project; contain .env)
 backups/
 
 # OS
 .DS_Store
-data/**/*.png

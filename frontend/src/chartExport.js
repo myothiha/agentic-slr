@@ -17,25 +17,49 @@ function sanitize(name) {
 }
 
 // Convert one <svg> element to a PNG Blob at the given pixel scale.
-function svgToPngBlob(svg, scale = 3) {
+// `fontScale` enlarges chart text in the exported image relative to what's on
+// screen (1 = same size). Extra padding is added so bigger labels don't clip.
+function svgToPngBlob(svg, scale = 3, fontScale = 1.35) {
   return new Promise((resolve, reject) => {
     const rect = svg.getBoundingClientRect();
     const width = Math.max(1, rect.width);
     const height = Math.max(1, rect.height);
 
     const clone = svg.cloneNode(true);
+
+    // Enlarge every text/tspan by walking the live tree and the clone in
+    // parallel (identical structure), reading the resolved on-screen size.
+    if (fontScale && fontScale !== 1) {
+      const orig = svg.querySelectorAll("text, tspan");
+      const copy = clone.querySelectorAll("text, tspan");
+      for (let i = 0; i < copy.length; i++) {
+        const base = parseFloat(orig[i] && getComputedStyle(orig[i]).fontSize) || 12;
+        const fs = `${(base * fontScale).toFixed(1)}px`;
+        copy[i].style.fontSize = fs;
+        copy[i].setAttribute("font-size", fs);
+      }
+    }
+
+    // Breathing room so the enlarged axis / value labels are never cut off.
+    const padL = 52;
+    const padR = 52;
+    const padT = 14;
+    const padB = 26;
+    const vbW = width + padL + padR;
+    const vbH = height + padT + padB;
+
     clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-    clone.setAttribute("width", width);
-    clone.setAttribute("height", height);
-    clone.setAttribute("viewBox", `0 0 ${width} ${height}`);
+    clone.setAttribute("width", vbW);
+    clone.setAttribute("height", vbH);
+    clone.setAttribute("viewBox", `${-padL} ${-padT} ${vbW} ${vbH}`);
     clone.style.fontFamily = FONT_STACK;
 
     // Opaque white background so the PNG isn't transparent.
     const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-    bg.setAttribute("x", "0");
-    bg.setAttribute("y", "0");
-    bg.setAttribute("width", width);
-    bg.setAttribute("height", height);
+    bg.setAttribute("x", -padL);
+    bg.setAttribute("y", -padT);
+    bg.setAttribute("width", vbW);
+    bg.setAttribute("height", vbH);
     bg.setAttribute("fill", "#ffffff");
     clone.insertBefore(bg, clone.firstChild);
 
@@ -47,11 +71,11 @@ function svgToPngBlob(svg, scale = 3) {
     const img = new Image();
     img.onload = () => {
       const canvas = document.createElement("canvas");
-      canvas.width = Math.ceil(width * scale);
-      canvas.height = Math.ceil(height * scale);
+      canvas.width = Math.ceil(vbW * scale);
+      canvas.height = Math.ceil(vbH * scale);
       const ctx = canvas.getContext("2d");
       ctx.setTransform(scale, 0, 0, scale, 0, 0);
-      ctx.drawImage(img, 0, 0);
+      ctx.drawImage(img, 0, 0, vbW, vbH);
       URL.revokeObjectURL(url);
       canvas.toBlob(
         (blob) => (blob ? resolve(blob) : reject(new Error("toBlob failed"))),

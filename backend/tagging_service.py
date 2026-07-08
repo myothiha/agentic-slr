@@ -311,6 +311,126 @@ def delete_dimension(field: str) -> None:
     _save(state)
 
 
+def _drop_evidence_key(paper: dict[str, Any], field: str, target: str) -> None:
+    ev = paper.get("evidence", {}).get(field)
+    if isinstance(ev, dict):
+        for k in [k for k in ev if normalize_tag(k) == target]:
+            ev.pop(k, None)
+
+
+def remove_tag(field: str, tag: str) -> dict[str, Any]:
+    """Remove a single tag from a dimension *everywhere*: its preferred
+    vocabulary, its tag descriptions, any group memberships, and every paper's
+    tags/evidence for this dimension. Matching is case-insensitive (normalized).
+
+    A paper that ends up with no tags on any dimension is deleted, mirroring
+    ``delete_dimension``. Returns how many papers were touched/removed.
+    """
+    state = _load()
+    dim = _require(state, field)
+    target = normalize_tag(tag)
+    if not target:
+        raise ValueError("Tag is required.")
+
+    # Definition vocabulary + descriptions + groups.
+    dim["preferred"] = [t for t in dim.get("preferred", []) if normalize_tag(t) != target]
+    dim["tag_descriptions"] = {
+        k: v for k, v in dim.get("tag_descriptions", {}).items() if normalize_tag(k) != target
+    }
+    for g in dim.get("groups", []):
+        g["members"] = [m for m in g.get("members", []) if normalize_tag(m) != target]
+
+    papers_updated = 0
+    papers_deleted = 0
+    for idx in list(state["papers"].keys()):
+        p = state["papers"][idx]
+        tags = p.get("tags", {}).get(field)
+        if tags is None:
+            continue
+        kept = [t for t in tags if normalize_tag(t) != target]
+        if len(kept) == len(tags):
+            continue  # this paper didn't carry the tag
+        papers_updated += 1
+        _drop_evidence_key(p, field, target)
+        if kept:
+            p["tags"][field] = kept
+        else:
+            p.get("tags", {}).pop(field, None)
+            p.get("evidence", {}).pop(field, None)
+            p.get("processed", {}).pop(field, None)
+        if not p.get("tags"):
+            del state["papers"][idx]
+            papers_deleted += 1
+
+    dim["updated_at"] = _now()
+    _save(state)
+    return {
+        "field": field, "tag": target,
+        "papers_updated": papers_updated, "papers_deleted": papers_deleted,
+    }
+
+
+def merge_tag(field: str, source: str, target: str) -> dict[str, Any]:
+    """Fold ``source`` into ``target`` for one dimension: rewrite the tag on
+    every paper (de-duplicating), move its evidence when the target has none,
+    and update the preferred vocabulary, descriptions and group memberships.
+    Matching is case-insensitive (normalized)."""
+    state = _load()
+    dim = _require(state, field)
+    src = normalize_tag(source)
+    dst = normalize_tag(target)
+    if not src or not dst:
+        raise ValueError("Both source and target tags are required.")
+    if src == dst:
+        raise ValueError("Source and target tags are the same.")
+
+    def _dedupe(values, replace_from, replace_to):
+        out, seen = [], set()
+        for v in values:
+            nv = replace_to if normalize_tag(v) == replace_from else v
+            key = normalize_tag(nv)
+            if key and key not in seen:
+                seen.add(key)
+                out.append(nv)
+        return out
+
+    papers_updated = 0
+    for p in state["papers"].values():
+        tags = p.get("tags", {}).get(field)
+        if not tags or not any(normalize_tag(t) == src for t in tags):
+            continue
+        p["tags"][field] = _dedupe(tags, src, dst)
+        papers_updated += 1
+        ev = p.get("evidence", {}).get(field)
+        if isinstance(ev, dict):
+            src_val = None
+            for k in [k for k in ev if normalize_tag(k) == src]:
+                src_val = ev.pop(k)
+            if src_val and not any(normalize_tag(k) == dst for k in ev):
+                ev[dst] = src_val
+
+    # Definition vocabulary — replace source with target, keep target present.
+    pref = _dedupe(dim.get("preferred", []), src, dst)
+    if not any(normalize_tag(t) == dst for t in pref):
+        pref.append(dst)
+    dim["preferred"] = pref
+
+    td = dim.get("tag_descriptions", {})
+    src_desc = None
+    for k in [k for k in td if normalize_tag(k) == src]:
+        src_desc = td.pop(k)
+    if src_desc and not any(normalize_tag(k) == dst for k in td):
+        td[dst] = src_desc
+    dim["tag_descriptions"] = td
+
+    for g in dim.get("groups", []):
+        g["members"] = _dedupe(g.get("members", []), src, dst)
+
+    dim["updated_at"] = _now()
+    _save(state)
+    return {"field": field, "source": src, "target": dst, "papers_updated": papers_updated}
+
+
 # --------------------------------------------------------------------------- #
 # Extraction
 # --------------------------------------------------------------------------- #

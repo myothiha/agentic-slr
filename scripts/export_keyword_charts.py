@@ -60,10 +60,10 @@ def apply_style(dpi: int) -> None:
         "font.family": "sans-serif",
         "font.sans-serif": ["Helvetica Neue", "Helvetica", "Arial",
                              "DejaVu Sans", "sans-serif"],
-        "font.size": 11,
-        "axes.titlesize": 13,
+        "font.size": 14,
+        "axes.titlesize": 17,
         "axes.titleweight": "semibold",
-        "axes.labelsize": 11,
+        "axes.labelsize": 14,
         "axes.edgecolor": "#4A4A4A",
         "axes.linewidth": 0.8,
         "axes.grid": True,
@@ -72,9 +72,9 @@ def apply_style(dpi: int) -> None:
         "grid.linewidth": 0.8,
         "xtick.color": "#4A4A4A",
         "ytick.color": "#333333",
-        "xtick.labelsize": 10,
-        "ytick.labelsize": 10,
-        "legend.fontsize": 9,
+        "xtick.labelsize": 13,
+        "ytick.labelsize": 13,
+        "legend.fontsize": 12,
         "legend.frameon": False,
     })
 
@@ -112,7 +112,7 @@ def hbar(ax, labels, values, *, color, value_fmt="{:.0f}", pad=0.0):
         ax.text(rect.get_width() + vmax * 0.012,
                 rect.get_y() + rect.get_height() / 2,
                 value_fmt.format(val), va="center", ha="left",
-                fontsize=9, color="#333333")
+                fontsize=12, color="#333333")
     ax.set_xlim(0, vmax * (1.12 + pad))
     return bars
 
@@ -164,7 +164,7 @@ def render_panel_bar(panel, meta, out: Path, idx: int, normalize: bool) -> Path 
     ax.set_title(f"{panel['value']}  ·  {panel['paper_count']} papers",
                  loc="left", pad=12)
     fig.text(0.01, 0.005, f"{meta['top_name']} → {meta['brk_name']}",
-             fontsize=8, color="#999999", ha="left")
+             fontsize=11, color="#999999", ha="left")
     fig.tight_layout()
     path = out / f"{idx + 1:02d}_{slugify(panel['value'])}.png"
     fig.savefig(path)
@@ -195,7 +195,7 @@ def render_panel_pie(panel, meta, out: Path, idx: int, max_slices: int = 10) -> 
     legend_labels = [f"{lab}  —  {val} ({100 * val / total:.0f}%)"
                      for lab, val in zip(labels, values)]
     ax.legend(wedges, legend_labels, loc="center left",
-              bbox_to_anchor=(1.02, 0.5), fontsize=9)
+              bbox_to_anchor=(1.02, 0.5), fontsize=12)
     ax.set_title(f"{panel['value']}  ·  {panel['paper_count']} papers",
                  loc="center", pad=16)
     fig.tight_layout()
@@ -225,13 +225,13 @@ def render_grid(result, meta, out: Path, normalize: bool, max_bars: int = 10) ->
         hbar(ax, labels, values, color=PALETTE[i % len(PALETTE)],
              value_fmt=("{:.0f}%" if normalize else "{:.0f}"))
         ax.set_title(f"{panel['value']}  ({panel['paper_count']})",
-                     loc="left", fontsize=11, pad=6)
-        ax.tick_params(labelsize=8)
+                     loc="left", fontsize=13, pad=6)
+        ax.tick_params(labelsize=11)
     # hide any unused axes
     for j in range(n, nrows * ncols):
         axes[j // ncols][j % ncols].axis("off")
     fig.suptitle(f"{meta['top_name']} → {meta['brk_name']} breakdown",
-                 fontsize=15, fontweight="semibold", x=0.02, ha="left")
+                 fontsize=18, fontweight="semibold", x=0.02, ha="left")
     fig.tight_layout(rect=(0, 0, 1, 0.97))
     path = out / "grid_small_multiples.png"
     fig.savefig(path)

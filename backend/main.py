@@ -441,6 +441,15 @@ class SuggestRequest(BaseModel):
     description: str | None = None
 
 
+class RemoveTagPayload(BaseModel):
+    tag: str
+
+
+class MergeTagPayload(BaseModel):
+    source: str
+    target: str
+
+
 class GroupPayload(BaseModel):
     name: str
     members: list[str] = []
@@ -496,6 +505,25 @@ def delete_tagging_dimension(field: str):
 def get_tagging_dimension(field: str):
     try:
         return tagging_service.get_state(field)
+    except ValueError as e:
+        raise _tagging_error(e)
+
+
+@app.post("/api/tagging/dimensions/{field}/remove-tag")
+def remove_tagging_tag(field: str, payload: RemoveTagPayload):
+    """Remove one tag from this dimension everywhere (vocabulary, groups, and
+    every paper's tags/evidence)."""
+    try:
+        return tagging_service.remove_tag(field, payload.tag)
+    except ValueError as e:
+        raise _tagging_error(e)
+
+
+@app.post("/api/tagging/dimensions/{field}/merge-tag")
+def merge_tagging_tag(field: str, payload: MergeTagPayload):
+    """Fold one tag into another for this dimension, across all papers."""
+    try:
+        return tagging_service.merge_tag(field, payload.source, payload.target)
     except ValueError as e:
         raise _tagging_error(e)
 

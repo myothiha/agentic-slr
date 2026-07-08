@@ -127,6 +127,18 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     }),
+  removeTaggingTag: (field, tag) =>
+    request(`/tagging/dimensions/${field}/remove-tag`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tag }),
+    }),
+  mergeTaggingTag: (field, source, target) =>
+    request(`/tagging/dimensions/${field}/merge-tag`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source, target }),
+    }),
   getTaggingPapers: (field) => request(`/tagging/dimensions/${field}/papers`),
   getTaggingCategories: (field) => request(`/tagging/dimensions/${field}/categories`),
   createTaggingGroup: (field, payload) =>

@@ -55,6 +55,8 @@ export default function KeywordExtraction() {
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState(null);
   const [expanded, setExpanded] = useState(null);
+  const [mergeSrc, setMergeSrc] = useState("");
+  const [mergeDst, setMergeDst] = useState("");
 
   const loadDims = () =>
     api.listTaggingDimensions().then((d) => {
@@ -176,6 +178,54 @@ export default function KeywordExtraction() {
       alert(e.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Count of papers currently carrying a tag (from the saved tag pool).
+  const tagCount = (tag) => {
+    const n = (tag || "").trim().toLowerCase();
+    const hit = (state?.tag_pool || []).find((x) => (x.tag || "").toLowerCase() === n);
+    return hit ? hit.count : 0;
+  };
+
+  // ✕ on a row: purge a saved tag from everywhere, else just drop the local row.
+  const handleRemoveRow = async (i, r) => {
+    const n = tagCount(r.tag);
+    if (n <= 0) {
+      removeRow(i);
+      return;
+    }
+    if (!confirm(
+      `Remove "${r.tag}" from this definition and strip it from ${n} paper${n === 1 ? "" : "s"} ` +
+      `(and from any groups)? This cannot be undone.`
+    )) return;
+    try {
+      const res = await api.removeTaggingTag(field, r.tag);
+      await loadDim(field);
+      await loadDims();
+      setResult({ note: `Removed "${res.tag}" from ${res.papers_updated} paper${res.papers_updated === 1 ? "" : "s"}` +
+        (res.papers_deleted ? ` (${res.papers_deleted} left empty were dropped).` : ".") });
+    } catch (e) {
+      alert(e.message);
+    }
+  };
+
+  const doMerge = async () => {
+    if (!mergeSrc || !mergeDst || mergeSrc === mergeDst) return;
+    const n = tagCount(mergeSrc);
+    if (!confirm(
+      `Merge "${mergeSrc}" into "${mergeDst}" across ${n} paper${n === 1 ? "" : "s"}? ` +
+      `The "${mergeSrc}" tag will disappear. This cannot be undone.`
+    )) return;
+    try {
+      const res = await api.mergeTaggingTag(field, mergeSrc, mergeDst);
+      setMergeSrc("");
+      setMergeDst("");
+      await loadDim(field);
+      await loadDims();
+      setResult({ note: `Merged "${res.source}" into "${res.target}" across ${res.papers_updated} paper${res.papers_updated === 1 ? "" : "s"}.` });
+    } catch (e) {
+      alert(e.message);
     }
   };
 
@@ -351,9 +401,11 @@ export default function KeywordExtraction() {
                     />
                     <button
                       type="button"
-                      onClick={() => removeRow(i)}
+                      onClick={() => handleRemoveRow(i, r)}
                       className="mt-2 text-slate-300 hover:text-red-500"
-                      title="Remove"
+                      title={tagCount(r.tag) > 0
+                        ? `Remove from the definition and strip it from ${tagCount(r.tag)} paper(s)`
+                        : "Remove this row"}
                     >
                       ✕
                     </button>
@@ -363,6 +415,35 @@ export default function KeywordExtraction() {
                   ＋ Add keyword
                 </button>
               </div>
+
+              {/* Merge / rename a tag across all papers */}
+              {(state.tag_pool || []).length >= 2 && (
+                <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 text-xs text-slate-600">
+                  <span className="font-medium text-slate-500">Merge tag</span>
+                  <select className="input py-1" value={mergeSrc} onChange={(e) => setMergeSrc(e.target.value)}>
+                    <option value="">choose…</option>
+                    {(state.tag_pool || []).map((t) => (
+                      <option key={t.tag} value={t.tag}>{t.tag} · {t.count}</option>
+                    ))}
+                  </select>
+                  <span>into</span>
+                  <select className="input py-1" value={mergeDst} onChange={(e) => setMergeDst(e.target.value)}>
+                    <option value="">choose…</option>
+                    {(state.tag_pool || []).filter((t) => t.tag !== mergeSrc).map((t) => (
+                      <option key={t.tag} value={t.tag}>{t.tag} · {t.count}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={doMerge}
+                    disabled={!mergeSrc || !mergeDst || mergeSrc === mergeDst}
+                    className="rounded-md border border-slate-300 px-2 py-1 hover:bg-slate-50 disabled:opacity-40"
+                  >
+                    Merge
+                  </button>
+                  <span className="text-slate-400">folds one tag into another everywhere</span>
+                </div>
+              )}
               <span className="mt-1 block text-xs text-slate-400">
                 The agent reuses these labels (with their meanings) when they fit, and only invents a
                 new tag when none apply. New tags it creates are auto-described.
@@ -424,6 +505,8 @@ export default function KeywordExtraction() {
               >
                 {result.error ? (
                   <p>Error: {result.error}</p>
+                ) : result.processed === undefined ? (
+                  <p>{result.note}</p>
                 ) : (
                   <p>
                     Processed {result.processed} · tagged {result.tagged} · skipped {result.skipped}{" "}

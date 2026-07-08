@@ -18,3 +18,4 @@ backups/
 
 # OS
 .DS_Store
+data/**/*.png

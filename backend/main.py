@@ -361,15 +361,21 @@ def get_full_text_text(index: str):
 
 
 @app.post("/api/full-text/auto-download")
-def full_text_auto_download():
-    """Batch Open-Access downloader for all 'missing' papers with a DOI."""
-    return full_text_service.auto_download_oa_batch()
+def full_text_auto_download(database_id: str | None = None):
+    """Batch Open-Access downloader for 'missing' papers with a DOI.
+
+    Pass ?database_id=<id> to process a single database only.
+    """
+    return full_text_service.auto_download_oa_batch(database_id)
 
 
 @app.post("/api/full-text/scan")
-def full_text_scan():
-    """Scan raw_pdfs/ for manually-dropped PDFs and extract them."""
-    return full_text_service.scan_local_pdfs()
+def full_text_scan(database_id: str | None = None):
+    """Scan raw_pdfs/ for manually-dropped PDFs and extract them.
+
+    Pass ?database_id=<id> to scan a single database only.
+    """
+    return full_text_service.scan_local_pdfs(database_id)
 
 
 @app.post("/api/full-text/upload/{index}")

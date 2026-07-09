@@ -108,8 +108,16 @@ export const api = {
   getFullText: () => request("/full-text"),
   getPaperText: (index) =>
     request(`/full-text/papers/${encodeURIComponent(index)}/text`),
-  triggerAutoDownload: () => request("/full-text/auto-download", { method: "POST" }),
-  scanLocalPdfs: () => request("/full-text/scan", { method: "POST" }),
+  triggerAutoDownload: (databaseId = null) =>
+    request(
+      `/full-text/auto-download${databaseId ? `?database_id=${encodeURIComponent(databaseId)}` : ""}`,
+      { method: "POST" }
+    ),
+  scanLocalPdfs: (databaseId = null) =>
+    request(
+      `/full-text/scan${databaseId ? `?database_id=${encodeURIComponent(databaseId)}` : ""}`,
+      { method: "POST" }
+    ),
   uploadPdf: (index, file) => {
     const form = new FormData();
     form.append("file", file);

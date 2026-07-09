@@ -16,6 +16,12 @@ const SOURCE_LABEL = {
   none: "No included papers yet",
 };
 
+function formatAuthors(authors) {
+  if (!Array.isArray(authors) || authors.length === 0) return "—";
+  const first = authors.slice(0, 3).join(", ");
+  return authors.length > 3 ? `${first}, et al.` : first;
+}
+
 const ERROR_HINT = {
   no_text_layer: "No text layer — scanned/image PDF (needs OCR)",
   no_doi: "No DOI available for auto-download",
@@ -28,6 +34,7 @@ export default function FullTextExtraction() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [statusView, setStatusView] = useState("all");
+  const [dbFilter, setDbFilter] = useState("all"); // database_id or "all"
   const [busy, setBusy] = useState(null); // "download" | "scan" | null
   const [note, setNote] = useState(null);
   const [preview, setPreview] = useState(null); // { index, text, char_count }
@@ -43,21 +50,45 @@ export default function FullTextExtraction() {
 
   useEffect(() => {
     setPage(1);
-  }, [statusView, perPage]);
+  }, [statusView, perPage, dbFilter]);
 
   const papers = data?.papers || [];
+
+  // Distinct databases present in the included set, for the filter dropdown.
+  const databases = useMemo(() => {
+    const seen = new Map();
+    for (const p of papers) {
+      if (p.database_id && !seen.has(p.database_id)) {
+        seen.set(p.database_id, p.database || p.database_id);
+      }
+    }
+    return [...seen.entries()].map(([id, name]) => ({ id, name }));
+  }, [papers]);
+
+  const dbScoped = useMemo(
+    () => (dbFilter === "all" ? papers : papers.filter((p) => p.database_id === dbFilter)),
+    [papers, dbFilter]
+  );
+
   const filtered = useMemo(
-    () => (statusView === "all" ? papers : papers.filter((p) => p.status === statusView)),
-    [papers, statusView]
+    () => (statusView === "all" ? dbScoped : dbScoped.filter((p) => p.status === statusView)),
+    [dbScoped, statusView]
   );
 
   if (error) return <ErrorBox message={error} />;
   if (!data) return <p className="text-slate-500">Loading…</p>;
 
-  const c = data.counts || {};
   const source = data.include_source || "none";
+  const totalIncluded = data.counts?.total || 0;
+  const dbId = dbFilter === "all" ? null : dbFilter;
 
-  if (c.total === 0) {
+  // Counts scoped to the current database filter, computed client-side.
+  const c = { total: dbScoped.length, extracted: 0, missing: 0, error: 0 };
+  for (const p of dbScoped) {
+    if (c[p.status] !== undefined) c[p.status] += 1;
+  }
+
+  if (totalIncluded === 0) {
     return (
       <div>
         <h2 className="text-2xl font-semibold text-slate-900 mb-4">Full-Text Extraction</h2>
@@ -153,24 +184,63 @@ export default function FullTextExtraction() {
         Source of included set: <strong>{SOURCE_LABEL[source]}</strong>
       </div>
 
+      {/* Database filter */}
+      {databases.length > 1 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white p-3 text-sm">
+          <span className="font-medium text-slate-700">Database</span>
+          <button
+            onClick={() => setDbFilter("all")}
+            className={`rounded border px-3 py-1 text-xs font-medium ${
+              dbFilter === "all"
+                ? "border-blue-400 bg-blue-50 text-blue-700"
+                : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            All ({totalIncluded})
+          </button>
+          {databases.map((db) => {
+            const n = papers.filter((p) => p.database_id === db.id).length;
+            return (
+              <button
+                key={db.id}
+                onClick={() => setDbFilter(db.id)}
+                className={`rounded border px-3 py-1 text-xs font-medium ${
+                  dbFilter === db.id
+                    ? "border-blue-400 bg-blue-50 text-blue-700"
+                    : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                {db.name} ({n})
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Controls */}
       <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white p-4">
         <button
-          onClick={() => runAction("download", api.triggerAutoDownload)}
+          onClick={() => runAction("download", () => api.triggerAutoDownload(dbId))}
           disabled={busy !== null}
           className="btn-primary"
         >
-          {busy === "download" ? "Downloading…" : "Auto-Download Open Access"}
+          {busy === "download"
+            ? "Downloading…"
+            : `Auto-Download Open Access${
+                dbId ? ` — ${databases.find((d) => d.id === dbId)?.name || dbId}` : ""
+              }`}
         </button>
         <button
-          onClick={() => runAction("scan", api.scanLocalPdfs)}
+          onClick={() => runAction("scan", () => api.scanLocalPdfs(dbId))}
           disabled={busy !== null}
           className="btn-secondary"
         >
           {busy === "scan" ? "Scanning…" : "Scan Local PDF Directory"}
         </button>
         <span className="text-xs text-slate-400">
-          Drop files named <code className="font-mono">&lt;index&gt;.pdf</code> into
+          Auto-download fetches open-access PDFs only; proxied papers (e.g. IEEE) are
+          download-only via each row's link. Or drop files named{" "}
+          <code className="font-mono">&lt;index&gt;.pdf</code> into
           data/03a_full_text_extraction/raw_pdfs/ then scan.
         </span>
         {note && <span className="ml-auto text-sm text-slate-700">{note}</span>}
@@ -203,6 +273,7 @@ export default function FullTextExtraction() {
             <tr>
               <th className="px-3 py-3">Index</th>
               <th className="px-3 py-3">Title</th>
+              <th className="px-3 py-3">Authors</th>
               <th className="px-3 py-3">Database</th>
               <th className="px-3 py-3">Status</th>
               <th className="px-3 py-3">Actions</th>
@@ -227,6 +298,7 @@ export default function FullTextExtraction() {
                     </a>
                   )}
                 </td>
+                <td className="px-3 py-3 text-slate-600">{formatAuthors(p.authors)}</td>
                 <td className="px-3 py-3 text-slate-600 whitespace-nowrap">{p.database || "—"}</td>
                 <td className="px-3 py-3">
                   <span className={`rounded px-2 py-0.5 text-xs ${STATUS_STYLE[p.status]}`}>
@@ -255,7 +327,7 @@ export default function FullTextExtraction() {
             ))}
             {total === 0 && (
               <tr>
-                <td colSpan={5} className="px-3 py-8 text-center text-slate-400">
+                <td colSpan={6} className="px-3 py-8 text-center text-slate-400">
                   No papers in this view.
                 </td>
               </tr>

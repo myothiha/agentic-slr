@@ -76,7 +76,7 @@ BROWSER_UA = (
 )
 _HTTP_HEADERS = {"User-Agent": BROWSER_UA}
 
-_RECORD_FIELDS = ("index", "title", "year", "database", "database_id", "doi", "url")
+_RECORD_FIELDS = ("index", "title", "authors", "year", "database", "database_id", "doi", "url")
 
 
 # --------------------------------------------------------------------------- #
@@ -403,85 +403,68 @@ def _fetch_pdf_bytes(url: str, client: httpx.Client) -> tuple[Optional[bytes], s
     return r.content, ""
 
 
-def _proxy_download_url(rec: dict[str, Any], proxy_map: dict[str, Optional[str]]) -> Optional[str]:
-    """Proxied publisher url for auto-download — only when the paper's database
-    has a proxy configured AND the paper has a stored url."""
-    suffix = proxy_map.get(rec.get("database_id"))
-    if suffix and rec.get("url"):
-        return proxy_rewrite(rec["url"], suffix)
-    return None
-
-
 def auto_download_oa(index: str, client: Optional[httpx.Client] = None) -> dict[str, Any]:
-    """Fetch a PDF for one paper, then extract its text.
+    """Fetch an Open-Access PDF for one paper (via OpenAlex), then extract text.
 
-    Tries sources in order:
-      1. Open Access via OpenAlex (no auth needed) — when a DOI is present.
-      2. The institutional proxy URL (best-effort) — when the paper's database
-         has a ``proxy_suffix`` and the paper has a stored url. This may hit a
-         login page if the proxy needs an authenticated session, in which case
-         it fails gracefully and the manual proxied link stays available.
+    Open Access ONLY — this never routes through an institutional proxy. Proxied
+    (e.g. IEEE) papers are reached solely through the manual Download link, so
+    automated parallel requests can't breach a publisher's concurrent-session
+    limit or trip the proxy's bot protection.
     """
     state = _read()
     rec = state["records"].get(index)
     if rec is None:
         return {}
     doi = _clean_doi(rec.get("doi"))
-    proxy_map = _proxy_map()
-    proxy_url = _proxy_download_url(rec, proxy_map)
-
-    if not doi and not proxy_url:
+    if not doi:
         return _update_record(index, status="error", error="no_doi") or {}
 
     own_client = client is None
     client = client or httpx.Client(timeout=OPENALEX_TIMEOUT, follow_redirects=True,
                                     headers=_HTTP_HEADERS)
     try:
-        candidates: list[tuple[str, str]] = []  # (source_label, url)
-        if doi:
-            try:
-                oa_url = _resolve_oa_url(doi, client)
-            except httpx.HTTPError:
-                oa_url = None
-            if oa_url:
-                candidates.append(("oa", oa_url))
-        if proxy_url:
-            candidates.append(("proxy", proxy_url))
-
-        if not candidates:
+        try:
+            oa_url = _resolve_oa_url(doi, client)
+        except httpx.HTTPError as e:
+            return _update_record(index, status="error",
+                                  error=f"openalex_failed: {type(e).__name__}") or {}
+        if not oa_url:
             return _update_record(index, status="error", error="no_oa_pdf") or {}
 
-        last_err = "no_oa_pdf"
-        for source_label, url in candidates:
-            content, reason = _fetch_pdf_bytes(url, client)
-            if content:
-                _ensure_dirs()
-                _pdf_path(index).write_bytes(content)
-                _update_record(index, status="downloading", source=source_label,
-                               pdf_url=url, error=None)
-                return extract_text_from_pdf(index)
-            last_err = reason
-        return _update_record(index, status="error", pdf_url=candidates[0][1],
-                              error=last_err) or {}
+        content, reason = _fetch_pdf_bytes(oa_url, client)
+        if not content:
+            return _update_record(index, status="error", pdf_url=oa_url,
+                                  error=reason) or {}
+
+        _ensure_dirs()
+        _pdf_path(index).write_bytes(content)
+        _update_record(index, status="downloading", source="oa", pdf_url=oa_url,
+                       error=None)
+        return extract_text_from_pdf(index)
     finally:
         if own_client:
             client.close()
 
 
-def auto_download_oa_batch() -> dict[str, Any]:
-    """Attempt a download for every 'missing' paper that has a DOI or a
-    configured institutional-proxy URL.
+def auto_download_oa_batch(database_id: Optional[str] = None) -> dict[str, Any]:
+    """Attempt an Open-Access download for every 'missing' paper that has a DOI.
+
+    When ``database_id`` is given, only that database's papers are processed
+    (lets the user work one source at a time).
+
+    Open Access only — proxied databases are intentionally excluded so parallel
+    requests never open concurrent proxy/publisher sessions. Those papers are
+    fetched manually via the Download link.
 
     Uses a synchronous httpx client per worker inside a thread pool (matching the
     codebase's threading pattern) — no async/thread mixing.
     """
     sync_included_papers()
     state = _read()
-    proxy_map = _proxy_map()
     targets = [
         idx for idx, rec in state["records"].items()
-        if rec.get("status") == "missing"
-        and (_clean_doi(rec.get("doi")) or _proxy_download_url(rec, proxy_map))
+        if rec.get("status") == "missing" and _clean_doi(rec.get("doi"))
+        and (database_id is None or rec.get("database_id") == database_id)
     ]
 
     def _work(idx: str) -> str:
@@ -506,9 +489,10 @@ def auto_download_oa_batch() -> dict[str, Any]:
 # --------------------------------------------------------------------------- #
 # Manual PDF sources: folder scan + upload
 # --------------------------------------------------------------------------- #
-def scan_local_pdfs() -> dict[str, Any]:
+def scan_local_pdfs(database_id: Optional[str] = None) -> dict[str, Any]:
     """Extract text from any raw_pdfs/<index>.pdf that isn't extracted yet.
 
+    When ``database_id`` is given, only that database's papers are scanned.
     Enables dropping PDFs straight into the filesystem.
     """
     sync_included_papers()
@@ -517,6 +501,8 @@ def scan_local_pdfs() -> dict[str, Any]:
     scanned = 0
     extracted = 0
     for idx, rec in state["records"].items():
+        if database_id is not None and rec.get("database_id") != database_id:
+            continue
         if rec.get("status") == "extracted":
             continue
         if _pdf_path(idx).exists():

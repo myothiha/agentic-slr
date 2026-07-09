@@ -272,7 +272,7 @@ def sync_included_papers() -> dict[str, Any]:
 
 def _counts(records: dict[str, Any]) -> dict[str, int]:
     counts = {"total": len(records), "extracted": 0, "missing": 0,
-              "downloading": 0, "error": 0}
+              "downloading": 0, "unavailable": 0, "error": 0}
     for rec in records.values():
         st = rec.get("status", "missing")
         if st in counts:
@@ -337,6 +337,10 @@ def extract_text_from_pdf(index: str) -> dict[str, Any]:
     except Exception as e:  # corrupt / encrypted PDF
         return _update_record(index, status="error",
                               error=f"parse_failed: {type(e).__name__}") or {}
+
+    # pypdf can emit lone/invalid surrogate code points that are not writable as
+    # UTF-8; drop them so extraction never crashes on a specific PDF.
+    text = text.encode("utf-8", "ignore").decode("utf-8")
 
     if len(text) < MIN_TEXT_CHARS:
         return _update_record(index, status="error", error="no_text_layer",
@@ -530,6 +534,11 @@ def save_uploaded_pdf(index: str, file_bytes: bytes) -> dict[str, Any]:
     _pdf_path(index).write_bytes(file_bytes)
     _update_record(index, source="upload", error=None)
     return extract_text_from_pdf(index)
+
+
+def mark_unavailable(index: str) -> dict[str, Any]:
+    """User action: flag a paper as having no obtainable free full-text PDF."""
+    return _update_record(index, status="unavailable", error=None) or {}
 
 
 def delete_paper(index: str) -> dict[str, Any]:

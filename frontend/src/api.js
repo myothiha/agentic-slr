@@ -126,6 +126,8 @@ export const api = {
       body: form,
     });
   },
+  markPdfUnavailable: (index) =>
+    request(`/full-text/papers/${encodeURIComponent(index)}/unavailable`, { method: "POST" }),
   deletePdf: (index) =>
     request(`/full-text/papers/${encodeURIComponent(index)}`, { method: "DELETE" }),
 

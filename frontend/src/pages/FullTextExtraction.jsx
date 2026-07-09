@@ -7,7 +7,13 @@ const STATUS_STYLE = {
   extracted: "bg-green-100 text-green-700",
   downloading: "bg-blue-100 text-blue-700",
   missing: "bg-slate-100 text-slate-600",
+  unavailable: "bg-amber-100 text-amber-700",
   error: "bg-red-100 text-red-700",
+};
+
+// "Not Available" is a manual, user-set status (see the row action button).
+const STATUS_LABEL = {
+  unavailable: "Not Available",
 };
 
 const SOURCE_LABEL = {
@@ -24,8 +30,8 @@ function formatAuthors(authors) {
 
 const ERROR_HINT = {
   no_text_layer: "No text layer — scanned/image PDF (needs OCR)",
-  no_doi: "No DOI available for auto-download",
-  no_oa_pdf: "No open-access PDF found",
+  no_doi: "No free PDF found (no DOI) — use the Download link or upload",
+  no_oa_pdf: "No free full-text PDF — use the Download link / institutional access",
   not_a_pdf: "Downloaded file was not a PDF",
   pdf_missing: "PDF file is missing",
 };
@@ -83,7 +89,7 @@ export default function FullTextExtraction() {
   const dbId = dbFilter === "all" ? null : dbFilter;
 
   // Counts scoped to the current database filter, computed client-side.
-  const c = { total: dbScoped.length, extracted: 0, missing: 0, error: 0 };
+  const c = { total: dbScoped.length, extracted: 0, missing: 0, unavailable: 0, error: 0 };
   for (const p of dbScoped) {
     if (c[p.status] !== undefined) c[p.status] += 1;
   }
@@ -143,6 +149,15 @@ export default function FullTextExtraction() {
     }
   };
 
+  const markUnavailable = async (index) => {
+    try {
+      await api.markPdfUnavailable(index);
+      await load();
+    } catch (e) {
+      setNote(`Could not mark ${index}: ${e.message}`);
+    }
+  };
+
   const openPreview = async (index) => {
     try {
       setPreview({ index, text: "Loading…", char_count: null });
@@ -173,10 +188,11 @@ export default function FullTextExtraction() {
       </header>
 
       {/* Stats */}
-      <div className="mb-4 grid grid-cols-4 gap-4">
+      <div className="mb-4 grid grid-cols-5 gap-4">
         <Stat label="Total Included" value={c.total} onClick={() => setStatusView("all")} active={statusView === "all"} />
         <Stat label="Extracted" value={c.extracted} tone="text-green-600" onClick={() => setStatusView("extracted")} active={statusView === "extracted"} />
         <Stat label="Pending" value={c.missing} tone="text-slate-600" onClick={() => setStatusView("missing")} active={statusView === "missing"} />
+        <Stat label="Not Available" value={c.unavailable} tone="text-amber-600" onClick={() => setStatusView("unavailable")} active={statusView === "unavailable"} />
         <Stat label="Errors" value={c.error} tone="text-red-600" onClick={() => setStatusView("error")} active={statusView === "error"} />
       </div>
 
@@ -302,7 +318,7 @@ export default function FullTextExtraction() {
                 <td className="px-3 py-3 text-slate-600 whitespace-nowrap">{p.database || "—"}</td>
                 <td className="px-3 py-3">
                   <span className={`rounded px-2 py-0.5 text-xs ${STATUS_STYLE[p.status]}`}>
-                    {p.status}
+                    {STATUS_LABEL[p.status] || p.status}
                   </span>
                   {p.status === "extracted" && (
                     <span className="ml-1 text-xs text-slate-400">
@@ -321,6 +337,7 @@ export default function FullTextExtraction() {
                     onUpload={(f) => upload(p.index, f)}
                     onPreview={() => openPreview(p.index)}
                     onDelete={() => remove(p.index)}
+                    onMarkUnavailable={() => markUnavailable(p.index)}
                   />
                 </td>
               </tr>
@@ -356,9 +373,10 @@ export default function FullTextExtraction() {
   );
 }
 
-function PaperActions({ paper, onUpload, onPreview, onDelete }) {
+function PaperActions({ paper, onUpload, onPreview, onDelete, onMarkUnavailable }) {
   const fileRef = useRef(null);
   const isExtracted = paper.status === "extracted";
+  const isUnavailable = paper.status === "unavailable";
   const hasPdf = isExtracted || paper.status === "downloading";
 
   return (
@@ -407,7 +425,16 @@ function PaperActions({ paper, onUpload, onPreview, onDelete }) {
               e.target.value = "";
             }}
           />
-          {hasPdf && (
+          {!isUnavailable && !hasPdf && (
+            <button
+              onClick={onMarkUnavailable}
+              title="Mark as having no obtainable free full-text PDF"
+              className="rounded border border-amber-300 bg-white px-2 py-0.5 text-xs text-amber-700 hover:bg-amber-50"
+            >
+              Not Available
+            </button>
+          )}
+          {(hasPdf || isUnavailable) && (
             <button
               onClick={onDelete}
               className="rounded border border-red-300 bg-white px-2 py-0.5 text-xs text-red-600 hover:bg-red-50"

@@ -387,6 +387,15 @@ async def full_text_upload(index: str, file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@app.post("/api/full-text/papers/{index}/unavailable")
+def full_text_mark_unavailable(index: str):
+    """User marks a paper as having no obtainable free full-text PDF."""
+    rec = full_text_service.mark_unavailable(index)
+    if not rec:
+        raise HTTPException(status_code=404, detail="Paper not found in full-text state.")
+    return rec
+
+
 @app.delete("/api/full-text/papers/{index}")
 def full_text_delete(index: str):
     rec = full_text_service.delete_paper(index)

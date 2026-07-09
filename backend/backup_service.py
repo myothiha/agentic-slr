@@ -20,9 +20,12 @@ from . import paths
 BACKUP_DIR = paths.PROJECT_ROOT / "backups"
 
 # Directories never included in a backup (derived, heavy, or the backups dir).
+# `raw_pdfs` holds downloaded/uploaded full-text PDFs — large binaries that are
+# re-downloadable or re-uploadable, so they're excluded to keep backups lean.
+# The extracted text (extracted_texts/) and full_text_state.json are kept.
 EXCLUDE_DIRS = {
     ".venv", "node_modules", ".git", "backups", "__pycache__",
-    ".pytest_cache", "dist", ".vite", ".idea", ".DS_Store",
+    ".pytest_cache", "dist", ".vite", ".idea", ".DS_Store", "raw_pdfs",
 }
 
 # Files excluded for security: .env holds API keys. `.env.example` is kept so a

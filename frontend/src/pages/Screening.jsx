@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api.js";
+import { paperMatches } from "../paperSearch.js";
 import { ErrorBox } from "./Dashboard.jsx";
 import Highlight from "../components/Highlight.jsx";
 import { ScreeningFilters, matchesScreeningFilters } from "../components/screeningFilters.jsx";
@@ -30,6 +31,7 @@ export default function Screening() {
   const [batch, setBatch] = useState(null); // { done, total } while running
   const [labelFilter, setLabelFilter] = useState(new Set());
   const [statusFilter, setStatusFilter] = useState(new Set());
+  const [query, setQuery] = useState("");
   const stopRef = useRef(false);
   const [searchParams] = useSearchParams();
   const focusIndex = searchParams.get("paper");
@@ -49,14 +51,17 @@ export default function Screening() {
 
   // The subset to screen, narrowed by the filter; navigation walks this list.
   const filtered = useMemo(
-    () => (papers || []).filter((p) => matchesScreeningFilters(p, labelFilter, statusFilter)),
-    [papers, labelFilter, statusFilter]
+    () =>
+      (papers || []).filter(
+        (p) => matchesScreeningFilters(p, labelFilter, statusFilter) && paperMatches(p, query)
+      ),
+    [papers, labelFilter, statusFilter, query]
   );
 
   // Reset to the first paper whenever the filter changes.
   useEffect(() => {
     setPos(0);
-  }, [labelFilter, statusFilter]);
+  }, [labelFilter, statusFilter, query]);
 
   // If navigated here with ?paper=INDEX (e.g. from Screened Review), jump to it.
   useEffect(() => {
@@ -217,6 +222,14 @@ export default function Screening() {
       )}
 
       {/* Filter: choose which papers to screen */}
+      <div className="mb-3">
+        <input
+          className="input w-full"
+          placeholder="Search papers — title, authors, DOI, year, abstract, keywords…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      </div>
       <div className="mb-4">
         <ScreeningFilters
           labelFilter={labelFilter}

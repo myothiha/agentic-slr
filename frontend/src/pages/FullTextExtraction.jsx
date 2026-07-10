@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api.js";
+import { paperMatches } from "../paperSearch.js";
 import { ErrorBox } from "./Dashboard.jsx";
 
 const STATUS_STYLE = {
@@ -41,6 +42,7 @@ export default function FullTextExtraction() {
   const [error, setError] = useState(null);
   const [statusView, setStatusView] = useState("all");
   const [dbFilter, setDbFilter] = useState("all"); // database_id or "all"
+  const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(null); // "download" | "scan" | null
   const [note, setNote] = useState(null);
   const [preview, setPreview] = useState(null); // { index, text, char_count }
@@ -56,7 +58,7 @@ export default function FullTextExtraction() {
 
   useEffect(() => {
     setPage(1);
-  }, [statusView, perPage, dbFilter]);
+  }, [statusView, perPage, dbFilter, query]);
 
   const papers = data?.papers || [];
 
@@ -77,8 +79,12 @@ export default function FullTextExtraction() {
   );
 
   const filtered = useMemo(
-    () => (statusView === "all" ? dbScoped : dbScoped.filter((p) => p.status === statusView)),
-    [dbScoped, statusView]
+    () =>
+      dbScoped.filter(
+        (p) =>
+          (statusView === "all" || p.status === statusView) && paperMatches(p, query)
+      ),
+    [dbScoped, statusView, query]
   );
 
   if (error) return <ErrorBox message={error} />;
@@ -262,8 +268,14 @@ export default function FullTextExtraction() {
         {note && <span className="ml-auto text-sm text-slate-700">{note}</span>}
       </div>
 
-      <div className="mb-3 flex items-center justify-between">
-        <p className="text-sm text-slate-500">
+      <div className="mb-3 flex flex-wrap items-center gap-3">
+        <input
+          className="input flex-1 min-w-[16rem]"
+          placeholder="Search papers — title, authors, DOI, year, abstract, keywords…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <p className="text-sm text-slate-500 whitespace-nowrap">
           {statusView === "all" ? "All papers" : `Status: ${statusView}`} · {total} shown
         </p>
         <label className="flex items-center gap-2 text-sm text-slate-600">

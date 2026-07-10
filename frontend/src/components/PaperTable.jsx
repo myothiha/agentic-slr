@@ -1,23 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-
-// One lowercase searchable blob per paper across every field.
-function searchBlob(p) {
-  return [
-    p.index,
-    p.title,
-    (p.authors || []).join(" "),
-    p.year,
-    p.doi,
-    p.venue,
-    (p.keywords || []).join(" "),
-    p.abstract,
-    p.url,
-    p.source_file,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-}
+import { paperMatches } from "../paperSearch.js";
 
 const PER_PAGE_OPTIONS = [10, 20, 50, 100];
 
@@ -31,14 +13,10 @@ export default function PaperTable({ papers, searchPlaceholder }) {
   const [page, setPage] = useState(1);
   const [expanded, setExpanded] = useState(null);
 
-  const filtered = useMemo(() => {
-    const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
-    if (terms.length === 0) return papers;
-    return papers.filter((p) => {
-      const blob = searchBlob(p);
-      return terms.every((t) => blob.includes(t));
-    });
-  }, [papers, query]);
+  const filtered = useMemo(
+    () => (query.trim() ? papers.filter((p) => paperMatches(p, query)) : papers),
+    [papers, query]
+  );
 
   // Reset to page 1 whenever the result set or page size changes.
   useEffect(() => {

@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api.js";
+import { paperMatches } from "../paperSearch.js";
 import { ErrorBox } from "./Dashboard.jsx";
 import { LABELS, ScreeningFilters, matchesScreeningFilters } from "../components/screeningFilters.jsx";
 
@@ -29,6 +30,7 @@ export default function ScreenedReview() {
   const [statusFilter, setStatusFilter] = useState(new Set());
   const [yearFilter, setYearFilter] = useState("");
   const [yearSort, setYearSort] = useState(null); // null | "asc" | "desc"
+  const [query, setQuery] = useState("");
   const [perPage, setPerPage] = useState(20);
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState(null);
@@ -63,7 +65,10 @@ export default function ScreenedReview() {
       return String(p.year) === yearFilter;
     };
     let list = papers.filter(
-      (p) => matchesScreeningFilters(p, labelFilter, statusFilter) && matchesYear(p)
+      (p) =>
+        matchesScreeningFilters(p, labelFilter, statusFilter) &&
+        matchesYear(p) &&
+        paperMatches(p, query)
     );
     if (yearSort) {
       list = [...list].sort((a, b) => {
@@ -74,11 +79,11 @@ export default function ScreenedReview() {
       });
     }
     return list;
-  }, [papers, labelFilter, statusFilter, yearFilter, yearSort]);
+  }, [papers, labelFilter, statusFilter, yearFilter, yearSort, query]);
 
   useEffect(() => {
     setPage(1);
-  }, [labelFilter, statusFilter, yearFilter, yearSort, perPage]);
+  }, [labelFilter, statusFilter, yearFilter, yearSort, perPage, query]);
 
   if (error) return <ErrorBox message={error} />;
   if (!papers) return <p className="text-slate-500">Loading…</p>;
@@ -121,6 +126,15 @@ export default function ScreenedReview() {
           No deduplicated set yet — run deduplication to populate the screening list.
         </div>
       )}
+
+      <div className="mb-3">
+        <input
+          className="input w-full"
+          placeholder="Search papers — title, authors, DOI, year, abstract, keywords, comment…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      </div>
 
       {/* Filters: two lists, AND across lists, OR within a list */}
       <div className="mb-4">

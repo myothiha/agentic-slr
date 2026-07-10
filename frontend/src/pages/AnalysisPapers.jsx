@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../api.js";
+import { paperMatches } from "../paperSearch.js";
 import { ErrorBox } from "./Dashboard.jsx";
 
 const DIM_COLORS = ["#dbeafe", "#dcfce7", "#fef3c7", "#fce7f3", "#ede9fe", "#ffedd5"];
@@ -10,6 +11,7 @@ export default function AnalysisPapers() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [open, setOpen] = useState(null);
+  const [query, setQuery] = useState("");
 
   const title = params.get("title") || "Papers";
   let filters = [];
@@ -29,6 +31,7 @@ export default function AnalysisPapers() {
 
   const dimName = Object.fromEntries(data.dimensions.map((d) => [d.field, d.name]));
   const dimColor = Object.fromEntries(data.dimensions.map((d, i) => [d.field, DIM_COLORS[i % DIM_COLORS.length]]));
+  const shown = query.trim() ? data.papers.filter((p) => paperMatches(p, query)) : data.papers;
 
   const exportCsv = () => {
     const fields = data.dimensions.map((d) => d.field);
@@ -52,12 +55,24 @@ export default function AnalysisPapers() {
       <header className="mb-5 flex items-start justify-between">
         <div>
           <h2 className="text-2xl font-semibold text-slate-900">{title}</h2>
-          <p className="text-slate-500 mt-1">{data.papers.length} papers</p>
+          <p className="text-slate-500 mt-1">
+            {shown.length}
+            {query.trim() ? ` of ${data.papers.length}` : ""} papers
+          </p>
         </div>
         <button onClick={exportCsv} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50">
           Export CSV
         </button>
       </header>
+
+      <div className="mb-3">
+        <input
+          className="input w-full"
+          placeholder="Search papers — title, index, year, abstract, tags…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      </div>
 
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
         <table className="w-full text-sm">
@@ -70,7 +85,7 @@ export default function AnalysisPapers() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {data.papers.map((p) => {
+            {shown.map((p) => {
               const isOpen = open === p.index;
               return (
                 <Fragment key={p.index}>

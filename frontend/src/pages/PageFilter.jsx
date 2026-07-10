@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api.js";
+import { paperMatches } from "../paperSearch.js";
 import { ErrorBox } from "./Dashboard.jsx";
 
 const STATUS_STYLE = {
@@ -19,6 +20,7 @@ export default function PageFilter() {
   const [statusView, setStatusView] = useState("all");
   const [perPage, setPerPage] = useState(20);
   const [page, setPage] = useState(1);
+  const [query, setQuery] = useState("");
 
   const apply = (payload) => {
     setData(payload);
@@ -33,13 +35,17 @@ export default function PageFilter() {
 
   const papers = data?.papers || [];
   const filtered = useMemo(
-    () => (statusView === "all" ? papers : papers.filter((p) => p.status === statusView)),
-    [papers, statusView]
+    () =>
+      papers.filter(
+        (p) =>
+          (statusView === "all" || p.status === statusView) && paperMatches(p, query)
+      ),
+    [papers, statusView, query]
   );
 
   useEffect(() => {
     setPage(1);
-  }, [statusView, perPage]);
+  }, [statusView, perPage, query]);
 
   if (error) return <ErrorBox message={error} />;
   if (!data) return <p className="text-slate-500">Loading…</p>;
@@ -159,8 +165,14 @@ export default function PageFilter() {
         .
       </div>
 
-      <div className="mb-3 flex items-center justify-between">
-        <p className="text-sm text-slate-500">
+      <div className="mb-3 flex flex-wrap items-center gap-3">
+        <input
+          className="input flex-1 min-w-[16rem]"
+          placeholder="Search papers — title, authors, DOI, year, abstract, keywords…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <p className="text-sm text-slate-500 whitespace-nowrap">
           {statusView === "all" ? "All papers" : `Status: ${statusView}`} · {total} shown
         </p>
         <label className="flex items-center gap-2 text-sm text-slate-600">

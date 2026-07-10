@@ -19,6 +19,35 @@ DEFAULT_DATABASES = [
     {"id": "wos", "name": "Web of Science", "prefix": "WOS", "priority": 4},
 ]
 
+
+def _conf(id_, display, dblp_key, sources, y0=2020, y1=2025, track="main"):
+    return {
+        "id": id_, "display": display, "dblp_key": dblp_key, "track": track,
+        "include_workshops": False, "include_companion": False,
+        "year_start": y0, "year_end": y1,
+        "abstract_sources": sources, "enabled": True,
+    }
+
+
+# Editable conference registry (venue -> DBLP key). dblp_key values are the
+# expected keys but are re-verified per venue-year at fetch time.
+DEFAULT_CONFERENCES = [
+    _conf("neurips", "NeurIPS", "conf/nips", ["openreview", "openalex", "s2"]),
+    _conf("icml", "ICML", "conf/icml", ["pmlr", "openalex", "s2"]),
+    _conf("iclr", "ICLR", "conf/iclr", ["openreview", "openalex", "s2"]),
+    _conf("acl", "ACL", "conf/acl", ["acl_anthology", "openalex", "s2"]),
+    _conf("emnlp", "EMNLP", "conf/emnlp", ["acl_anthology", "openalex", "s2"]),
+    _conf("naacl", "NAACL", "conf/naacl", ["acl_anthology", "openalex", "s2"]),
+    _conf("cvpr", "CVPR", "conf/cvpr", ["cvf", "openalex", "s2"]),
+    _conf("iccv", "ICCV", "conf/iccv", ["cvf", "openalex", "s2"], y0=2019),
+    _conf("eccv", "ECCV", "conf/eccv", ["openalex", "s2"], y1=2024),
+    _conf("aaai", "AAAI", "conf/aaai", ["openalex", "s2"]),
+    _conf("ijcai", "IJCAI", "conf/ijcai", ["openalex", "s2"]),
+    _conf("kdd", "KDD", "conf/kdd", ["openalex", "s2"]),
+    _conf("www", "WWW (The Web Conf)", "conf/www", ["openalex", "s2"]),
+    _conf("sigir", "SIGIR", "conf/sigir", ["openalex", "s2"]),
+]
+
 DEFAULT_METADATA: dict[str, Any] = {
     "title": "",
     "research_questions": "",
@@ -26,6 +55,7 @@ DEFAULT_METADATA: dict[str, Any] = {
     "inclusion_criteria": [],
     "exclusion_criteria": [],
     "databases": DEFAULT_DATABASES,
+    "conferences": DEFAULT_CONFERENCES,
     "highlight_rules": {"terms": [], "patterns": [], "compiled_at": None, "source": None},
 }
 
@@ -103,6 +133,42 @@ def delete_papers(database_id: str) -> None:
         fp.unlink()
     # The stored original uploads belong to this paper list, so drop them too.
     delete_raw_uploads(database_id)
+
+
+# --------------------------------------------------------------------------- #
+# Conference paper files (one JSON per venue, in data/00c_conference_papers)
+# --------------------------------------------------------------------------- #
+def conference_paper_file(venue_id: str):
+    return paths.CONFERENCE_DIR / f"{venue_id}.json"
+
+
+def load_conference_papers(venue_id: str) -> list[dict[str, Any]]:
+    fp = conference_paper_file(venue_id)
+    if not fp.exists():
+        return []
+    with fp.open("r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def save_conference_papers(venue_id: str, papers: list[dict[str, Any]]) -> None:
+    paths.ensure_dirs()
+    with _lock:
+        with conference_paper_file(venue_id).open("w", encoding="utf-8") as f:
+            json.dump(papers, f, indent=2, ensure_ascii=False)
+
+
+def delete_conference_papers(venue_id: str) -> None:
+    fp = conference_paper_file(venue_id)
+    if fp.exists():
+        fp.unlink()
+
+
+def save_conference_snapshot(run_id: str, manifest: dict[str, Any]) -> None:
+    paths.ensure_dirs()
+    with _lock:
+        fp = paths.CONFERENCE_SNAPSHOT_DIR / f"{run_id}.json"
+        with fp.open("w", encoding="utf-8") as f:
+            json.dump(manifest, f, indent=2, ensure_ascii=False)
 
 
 # --------------------------------------------------------------------------- #

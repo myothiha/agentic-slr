@@ -36,6 +36,7 @@ from agents.keyword_highlighter import update_metadata_highlighting
 from . import (
     analysis_service,
     backup_service,
+    conference_service,
     dedup_service,
     full_text_service,
     ingestion,
@@ -45,7 +46,14 @@ from . import (
     storage,
     tagging_service,
 )
-from .models import ContextUpdate, DatabaseCreate, DatabaseUpdate, ScreeningLabel
+from .models import (
+    ConferenceCreate,
+    ConferenceUpdate,
+    ContextUpdate,
+    DatabaseCreate,
+    DatabaseUpdate,
+    ScreeningLabel,
+)
 
 app = FastAPI(title="Agentic SLR API", version="0.1.0")
 
@@ -230,6 +238,66 @@ def download_raw_file(db_id: str, filename: str):
         filename=fp.name,
         media_type="application/octet-stream",
     )
+
+
+# --------------------------------------------------------------------------- #
+# Conference Search — registry + DBLP enumeration
+# --------------------------------------------------------------------------- #
+@app.get("/api/conferences")
+def list_conferences():
+    return conference_service.list_conferences()
+
+
+@app.post("/api/conferences")
+def add_conference(payload: ConferenceCreate):
+    try:
+        return conference_service.add_conference(payload.model_dump(exclude_unset=True))
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+
+@app.patch("/api/conferences/{venue_id}")
+def update_conference(venue_id: str, payload: ConferenceUpdate):
+    try:
+        return conference_service.update_conference(
+            venue_id, payload.model_dump(exclude_unset=True)
+        )
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.delete("/api/conferences/{venue_id}")
+def delete_conference(venue_id: str):
+    try:
+        return conference_service.delete_conference(venue_id)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.post("/api/conferences/{venue_id}/fetch")
+def fetch_conference(venue_id: str, refresh: bool = False, year: int | None = None):
+    log: list[str] = []
+    try:
+        result = conference_service.fetch_conference(
+            venue_id, refresh=refresh, logger=log.append, year=year
+        )
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except RuntimeError as e:
+        # Network / DBLP errors: return what we logged so the UI can show why.
+        raise HTTPException(status_code=502, detail=str(e))
+    result["log"] = log
+    return result
+
+
+@app.get("/api/conferences/{venue_id}/papers")
+def get_conference_papers(venue_id: str):
+    return conference_service.conference_papers(venue_id)
+
+
+@app.delete("/api/conferences/{venue_id}/papers")
+def clear_conference_papers(venue_id: str):
+    return conference_service.clear_conference_papers(venue_id)
 
 
 # --------------------------------------------------------------------------- #

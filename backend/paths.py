@@ -26,11 +26,20 @@ FULL_TEXT_STATE_FILE = FULL_TEXT_DIR / "full_text_state.json"
 TAGGING_DIR = DATA_DIR / "04_keyword_tagging"
 ANALYSIS_DIR = DATA_DIR / "05_keyword_analysis"
 
+# Conference Search feature (DBLP-enumeration).
+CONFERENCE_DIR = DATA_DIR / "00c_conference_papers"
+CONFERENCE_RAW_DIR = CONFERENCE_DIR / "_raw"          # cached raw DBLP responses (the snapshot)
+CONFERENCE_SNAPSHOT_DIR = CONFERENCE_DIR / "snapshots"  # per-fetch run manifests
+CONFERENCE_FILTER_DIR = DATA_DIR / "00d_conference_filter"
+CONFERENCE_DUP_DIR = DATA_DIR / "00e_conference_duplicates"
+
 
 def ensure_dirs() -> None:
     """Create the directories the backend relies on if they are missing."""
     for d in (
         CONTEXT_DIR, DATA_DIR, RAW_UPLOAD_DIR, RAW_PAPER_DIR,
         FULL_TEXT_PDF_DIR, FULL_TEXT_TXT_DIR,
+        CONFERENCE_DIR, CONFERENCE_RAW_DIR, CONFERENCE_SNAPSHOT_DIR,
+        CONFERENCE_FILTER_DIR, CONFERENCE_DUP_DIR,
     ):
         d.mkdir(parents=True, exist_ok=True)

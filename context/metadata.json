@@ -107,5 +107,226 @@
     ],
     "compiled_at": "2026-07-06T13:58:19.492304+00:00",
     "source": "agent"
-  }
+  },
+  "conferences": [
+    {
+      "id": "neurips",
+      "display": "NeurIPS",
+      "dblp_key": "conf/nips",
+      "track": "main",
+      "include_workshops": false,
+      "include_companion": false,
+      "year_start": 2020,
+      "year_end": 2025,
+      "abstract_sources": [
+        "openreview",
+        "openalex",
+        "s2"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "icml",
+      "display": "ICML",
+      "dblp_key": "conf/icml",
+      "track": "main",
+      "include_workshops": false,
+      "include_companion": false,
+      "year_start": 2020,
+      "year_end": 2025,
+      "abstract_sources": [
+        "pmlr",
+        "openalex",
+        "s2"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "iclr",
+      "display": "ICLR",
+      "dblp_key": "conf/iclr",
+      "track": "main",
+      "include_workshops": false,
+      "include_companion": false,
+      "year_start": 2020,
+      "year_end": 2025,
+      "abstract_sources": [
+        "openreview",
+        "openalex",
+        "s2"
+      ],
+      "enabled": true,
+      "last_fetched": "2026-07-10T21:50:02.034055+00:00"
+    },
+    {
+      "id": "acl",
+      "display": "ACL",
+      "dblp_key": "conf/acl",
+      "track": "main",
+      "include_workshops": false,
+      "include_companion": false,
+      "year_start": 2020,
+      "year_end": 2025,
+      "abstract_sources": [
+        "acl_anthology",
+        "openalex",
+        "s2"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "emnlp",
+      "display": "EMNLP",
+      "dblp_key": "conf/emnlp",
+      "track": "main",
+      "include_workshops": false,
+      "include_companion": false,
+      "year_start": 2020,
+      "year_end": 2025,
+      "abstract_sources": [
+        "acl_anthology",
+        "openalex",
+        "s2"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "naacl",
+      "display": "NAACL",
+      "dblp_key": "conf/naacl",
+      "track": "main",
+      "include_workshops": false,
+      "include_companion": false,
+      "year_start": 2020,
+      "year_end": 2025,
+      "abstract_sources": [
+        "acl_anthology",
+        "openalex",
+        "s2"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "cvpr",
+      "display": "CVPR",
+      "dblp_key": "conf/cvpr",
+      "track": "main",
+      "include_workshops": false,
+      "include_companion": false,
+      "year_start": 2020,
+      "year_end": 2025,
+      "abstract_sources": [
+        "cvf",
+        "openalex",
+        "s2"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "iccv",
+      "display": "ICCV",
+      "dblp_key": "conf/iccv",
+      "track": "main",
+      "include_workshops": false,
+      "include_companion": false,
+      "year_start": 2019,
+      "year_end": 2025,
+      "abstract_sources": [
+        "cvf",
+        "openalex",
+        "s2"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "eccv",
+      "display": "ECCV",
+      "dblp_key": "conf/eccv",
+      "track": "main",
+      "include_workshops": false,
+      "include_companion": false,
+      "year_start": 2020,
+      "year_end": 2024,
+      "abstract_sources": [
+        "openalex",
+        "s2"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "aaai",
+      "display": "AAAI",
+      "dblp_key": "conf/aaai",
+      "track": "main",
+      "include_workshops": false,
+      "include_companion": false,
+      "year_start": 2020,
+      "year_end": 2025,
+      "abstract_sources": [
+        "openalex",
+        "s2"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "ijcai",
+      "display": "IJCAI",
+      "dblp_key": "conf/ijcai",
+      "track": "main",
+      "include_workshops": false,
+      "include_companion": false,
+      "year_start": 2020,
+      "year_end": 2025,
+      "abstract_sources": [
+        "openalex",
+        "s2"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "kdd",
+      "display": "KDD",
+      "dblp_key": "conf/kdd",
+      "track": "main",
+      "include_workshops": false,
+      "include_companion": false,
+      "year_start": 2020,
+      "year_end": 2025,
+      "abstract_sources": [
+        "openalex",
+        "s2"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "www",
+      "display": "WWW (The Web Conf)",
+      "dblp_key": "conf/www",
+      "track": "main",
+      "include_workshops": false,
+      "include_companion": false,
+      "year_start": 2020,
+      "year_end": 2025,
+      "abstract_sources": [
+        "openalex",
+        "s2"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "sigir",
+      "display": "SIGIR",
+      "dblp_key": "conf/sigir",
+      "track": "main",
+      "include_workshops": false,
+      "include_companion": false,
+      "year_start": 2020,
+      "year_end": 2025,
+      "abstract_sources": [
+        "openalex",
+        "s2"
+      ],
+      "enabled": true
+    }
+  ]
 }

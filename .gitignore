@@ -13,6 +13,9 @@ frontend/.vite/
 data/**/*.json
 !data/.gitkeep
 
+# Conference fetch cache — regenerable raw DBLP responses (.json/.html/.bib)
+data/**/_raw/
+
 # Figures
 data/**/*.png
 

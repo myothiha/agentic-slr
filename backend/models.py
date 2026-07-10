@@ -58,6 +58,57 @@ class DatabaseUpdate(BaseModel):
     proxy_suffix: Optional[str] = None
 
 
+class Conference(BaseModel):
+    id: str
+    display: str
+    dblp_key: str
+    track: str = "main"
+    include_workshops: bool = False
+    include_companion: bool = False
+    year_start: int = 2020
+    year_end: int = 2025
+    abstract_sources: list[str] = Field(default_factory=lambda: ["openalex", "s2"])
+    enabled: bool = True
+
+
+class ConferenceCreate(BaseModel):
+    display: str
+    dblp_key: str
+    track: str = "main"
+    include_workshops: bool = False
+    include_companion: bool = False
+    year_start: Optional[int] = None
+    year_end: Optional[int] = None
+    abstract_sources: Optional[list[str]] = None
+    enabled: bool = True
+
+
+class ConferenceUpdate(BaseModel):
+    """Partial update for an existing venue's registry entry."""
+    display: Optional[str] = None
+    dblp_key: Optional[str] = None
+    track: Optional[str] = None
+    include_workshops: Optional[bool] = None
+    include_companion: Optional[bool] = None
+    year_start: Optional[int] = None
+    year_end: Optional[int] = None
+    abstract_sources: Optional[list[str]] = None
+    enabled: Optional[bool] = None
+
+
+class ConferenceSummary(BaseModel):
+    id: str
+    display: str
+    dblp_key: str
+    track: str = "main"
+    year_start: int = 2020
+    year_end: int = 2025
+    enabled: bool = True
+    paper_count: int = 0
+    index_range: Optional[str] = None
+    last_fetched: Optional[str] = None
+
+
 class Paper(BaseModel):
     index: str
     database: str

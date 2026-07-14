@@ -63,6 +63,10 @@ USER_AGENT = f"agentic-slr/0.1 (+{CONTACT})"
 _WORKSHOP_HINTS = ("workshop", "-ws", "srw", "student", "tutorial", "demo", "-demos", "tiny")
 _FINDINGS_HINTS = ("findings",)
 _COMPANION_HINTS = ("companion", "-comp", "adjunct")
+# Competitions / challenges — not research papers, always excluded.
+_COMPETITION_HINTS = ("competition", "challenge", "csw", "cellseg", "-comp-")
+# Datasets & Benchmarks — a real peer-reviewed track; kept, but labeled.
+_DB_RE = re.compile(r"\d(db|datasets?|benchmarks?)$")
 
 Logger = Callable[[str], None]
 
@@ -137,19 +141,27 @@ def _year_from_stem(stem: str) -> Optional[int]:
     return int(m.group(0)) if m else None
 
 
-def _is_main_track(stem: str, *, include_workshops: bool,
-                   include_companion: bool, track: str) -> bool:
+def _toc_track(stem: str, *, include_workshops: bool,
+               include_companion: bool, track: str) -> Optional[str]:
+    """Classify a TOC stem. Returns the track label to keep it, or None to skip.
+
+    Labels: 'main', 'datasets_benchmarks', 'findings'. Competitions/challenges,
+    workshops, companion volumes, tiny/findings (unless requested) return None.
+    """
     s = stem.lower()
     if track == "findings":
-        return any(h in s for h in _FINDINGS_HINTS)
-    # main track: exclude findings/workshop/companion volumes unless opted in
+        return "findings" if any(h in s for h in _FINDINGS_HINTS) else None
     if any(h in s for h in _FINDINGS_HINTS):
-        return False
+        return None
+    if any(h in s for h in _COMPETITION_HINTS):
+        return None  # competitions/challenges are never research-paper tracks
     if not include_workshops and any(h in s for h in _WORKSHOP_HINTS):
-        return False
+        return None
     if not include_companion and any(h in s for h in _COMPANION_HINTS):
-        return False
-    return True
+        return None
+    if _DB_RE.search(s) or "datasets" in s or "benchmark" in s:
+        return "datasets_benchmarks"
+    return "main"
 
 
 def discover_tocs(dblp_key: str, year_start: int, year_end: int, *,
@@ -162,7 +174,9 @@ def discover_tocs(dblp_key: str, year_start: int, year_end: int, *,
     inconsistent stems (e.g. nips vs neurips) automatically.
     """
     index_url = f"{DBLP_BASE}/db/{dblp_key.strip('/')}/index.html"
-    html = http_get(index_url, ext=".html", refresh=refresh, logger=logger)
+    # Always fetch the index fresh: it's one cheap request and it's how new
+    # proceedings (e.g. next year's) get discovered. Per-TOC data stays cached.
+    html = http_get(index_url, ext=".html", refresh=True, logger=logger)
 
     key_esc = re.escape(dblp_key.strip("/"))
     # Match links like .../db/conf/nips/neurips2023.html -> capture conf/nips/neurips2023
@@ -173,14 +187,16 @@ def discover_tocs(dblp_key: str, year_start: int, year_end: int, *,
         year = _year_from_stem(stem)
         if year is None or not (year_start <= year <= year_end):
             continue
-        if not _is_main_track(stem, include_workshops=include_workshops,
-                              include_companion=include_companion, track=track):
+        toc_track = _toc_track(stem, include_workshops=include_workshops,
+                               include_companion=include_companion, track=track)
+        if toc_track is None:
             continue
-        seen.setdefault(stem_key, {"year": year, "toc_key": stem_key})
+        seen.setdefault(stem_key, {"year": year, "toc_key": stem_key, "track": toc_track})
 
     tocs = sorted(seen.values(), key=lambda t: (t["year"], t["toc_key"]))
     _log(logger, f"discovered {len(tocs)} TOC(s) for {dblp_key} in "
-                 f"{year_start}-{year_end}: {[t['toc_key'] for t in tocs]}")
+                 f"{year_start}-{year_end}: "
+                 f"{[(t['toc_key'], t['track']) for t in tocs]}")
     return tocs
 
 
@@ -469,6 +485,7 @@ def enumerate_venue(dblp_key: str, year_start: int, year_end: int, *,
         for rec in recs:
             if rec["year"] is None:
                 rec["year"] = toc["year"]
+            rec["track"] = toc.get("track", "main")
         records.extend(recs)
         per_year[toc["year"]] = per_year.get(toc["year"], 0) + len(recs)
         if on_toc is not None:

@@ -73,6 +73,7 @@ class Conference(BaseModel):
 
 class ConferenceCreate(BaseModel):
     display: str
+    full_name: Optional[str] = None
     dblp_key: str
     track: str = "main"
     include_workshops: bool = False
@@ -86,6 +87,7 @@ class ConferenceCreate(BaseModel):
 class ConferenceUpdate(BaseModel):
     """Partial update for an existing venue's registry entry."""
     display: Optional[str] = None
+    full_name: Optional[str] = None
     dblp_key: Optional[str] = None
     track: Optional[str] = None
     include_workshops: Optional[bool] = None
@@ -94,6 +96,23 @@ class ConferenceUpdate(BaseModel):
     year_end: Optional[int] = None
     abstract_sources: Optional[list[str]] = None
     enabled: Optional[bool] = None
+
+
+class FilterRequest(BaseModel):
+    keyword_string: str = ""
+    use_llm: bool = False
+
+
+class ConferenceDefaults(BaseModel):
+    year_start: int
+    year_end: int
+    apply_to_all: bool = False
+
+
+class EnrichOptions(BaseModel):
+    """Optional per-run enrichment options (e.g. a pasted OpenReview captcha cookie)."""
+    openreview_cookie: Optional[str] = None
+    openreview_ua: Optional[str] = None
 
 
 class ConferenceSummary(BaseModel):

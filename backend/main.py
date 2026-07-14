@@ -48,10 +48,13 @@ from . import (
 )
 from .models import (
     ConferenceCreate,
+    ConferenceDefaults,
     ConferenceUpdate,
     ContextUpdate,
     DatabaseCreate,
     DatabaseUpdate,
+    EnrichOptions,
+    FilterRequest,
     ScreeningLabel,
 )
 
@@ -74,6 +77,15 @@ def _slugify(name: str) -> str:
 def _prefix_from(name: str) -> str:
     letters = re.sub(r"[^A-Za-z0-9]", "", name).upper()
     return (letters[:4] or "DB")
+
+
+def _tee_logger(store: list[str]):
+    """Return a logger that both collects lines (for the response) and prints
+    them to the backend console (flushed) so long runs can be watched live."""
+    def _log(msg: str) -> None:
+        store.append(msg)
+        print(f"[conf] {msg}", flush=True)
+    return _log
 
 
 # --------------------------------------------------------------------------- #
@@ -243,6 +255,18 @@ def download_raw_file(db_id: str, filename: str):
 # --------------------------------------------------------------------------- #
 # Conference Search — registry + DBLP enumeration
 # --------------------------------------------------------------------------- #
+@app.get("/api/conference-defaults")
+def get_conference_defaults():
+    return conference_service.get_conference_defaults()
+
+
+@app.put("/api/conference-defaults")
+def set_conference_defaults(payload: ConferenceDefaults):
+    return conference_service.set_conference_defaults(
+        payload.year_start, payload.year_end, apply_to_all=payload.apply_to_all
+    )
+
+
 @app.get("/api/conferences")
 def list_conferences():
     return conference_service.list_conferences()
@@ -279,12 +303,30 @@ def fetch_conference(venue_id: str, refresh: bool = False, year: int | None = No
     log: list[str] = []
     try:
         result = conference_service.fetch_conference(
-            venue_id, refresh=refresh, logger=log.append, year=year
+            venue_id, refresh=refresh, logger=_tee_logger(log), year=year
         )
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except RuntimeError as e:
         # Network / DBLP errors: return what we logged so the UI can show why.
+        raise HTTPException(status_code=502, detail=str(e))
+    result["log"] = log
+    return result
+
+
+@app.post("/api/conferences/{venue_id}/enrich")
+def enrich_conference(venue_id: str, refresh: bool = False, year: int | None = None,
+                      options: EnrichOptions | None = None):
+    log: list[str] = []
+    opts = options or EnrichOptions()
+    try:
+        result = conference_service.enrich_conference(
+            venue_id, refresh=refresh, logger=_tee_logger(log), year=year,
+            openreview_cookie=opts.openreview_cookie, openreview_ua=opts.openreview_ua,
+        )
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except RuntimeError as e:
         raise HTTPException(status_code=502, detail=str(e))
     result["log"] = log
     return result
@@ -298,6 +340,23 @@ def get_conference_papers(venue_id: str):
 @app.delete("/api/conferences/{venue_id}/papers")
 def clear_conference_papers(venue_id: str):
     return conference_service.clear_conference_papers(venue_id)
+
+
+@app.delete("/api/conferences/{venue_id}/abstracts")
+def clear_conference_abstracts(venue_id: str):
+    return conference_service.clear_conference_abstracts(venue_id)
+
+
+@app.get("/api/conference-filter")
+def get_conference_filter():
+    return conference_service.get_conference_filter()
+
+
+@app.post("/api/conference-filter")
+def run_conference_filter(payload: FilterRequest):
+    return conference_service.run_conference_filter(
+        payload.keyword_string, use_llm=payload.use_llm
+    )
 
 
 # --------------------------------------------------------------------------- #

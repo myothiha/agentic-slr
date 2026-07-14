@@ -147,7 +147,14 @@ function PaperRow({ p, open, onToggle }) {
         <td className="px-3 py-3 font-mono text-xs text-slate-500 whitespace-nowrap">
           {p.index}
         </td>
-        <td className="px-3 py-3 text-slate-800">{p.title || "(no title)"}</td>
+        <td className="px-3 py-3 text-slate-800">
+          {p.title || "(no title)"}
+          {p.track && p.track !== "main" && (
+            <span className="ml-2 rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700 align-middle">
+              {p.track_label || p.track}
+            </span>
+          )}
+        </td>
         <td className="px-3 py-3 text-slate-600 max-w-[12rem]">
           <span className="line-clamp-2">{(p.authors || []).join(", ")}</span>
         </td>
@@ -185,7 +192,22 @@ function PaperRow({ p, open, onToggle }) {
                 {p.venue && (
                   <div>
                     <p className="text-xs font-semibold uppercase text-slate-500 mb-1">Venue</p>
-                    <p className="text-slate-700">{p.venue}</p>
+                    <p className="text-slate-700">
+                      {p.venue}
+                      {p.track_label && p.track && p.track !== "main" ? ` · ${p.track_label}` : ""}
+                    </p>
+                  </div>
+                )}
+                {(p.abstract_source || p.abstract === "") && p.database_id === "dblp_conf" && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-slate-500 mb-1">
+                      Abstract source
+                    </p>
+                    <p className="text-slate-700">
+                      {p.abstract_source
+                        ? `${p.abstract_source}${p.match_method ? ` (${p.match_method})` : ""}`
+                        : "— not enriched"}
+                    </p>
                   </div>
                 )}
                 {p.url && (

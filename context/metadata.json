@@ -112,18 +112,21 @@
     {
       "id": "neurips",
       "display": "NeurIPS",
+      "full_name": "Neural Information Processing Systems",
       "dblp_key": "conf/nips",
       "track": "main",
       "include_workshops": false,
       "include_companion": false,
-      "year_start": 2020,
-      "year_end": 2025,
+      "year_start": 2022,
+      "year_end": 2026,
       "abstract_sources": [
         "openreview",
         "openalex",
         "s2"
       ],
-      "enabled": true
+      "enabled": true,
+      "last_fetched": "2026-07-11T21:39:14.643627+00:00",
+      "openalex_source_id": "S4306420609"
     },
     {
       "id": "icml",
@@ -132,14 +135,16 @@
       "track": "main",
       "include_workshops": false,
       "include_companion": false,
-      "year_start": 2020,
-      "year_end": 2025,
+      "year_start": 2022,
+      "year_end": 2026,
       "abstract_sources": [
         "pmlr",
         "openalex",
         "s2"
       ],
-      "enabled": true
+      "enabled": true,
+      "last_fetched": "2026-07-11T19:37:43.210328+00:00",
+      "openalex_source_id": "S4306419644"
     },
     {
       "id": "iclr",
@@ -148,15 +153,16 @@
       "track": "main",
       "include_workshops": false,
       "include_companion": false,
-      "year_start": 2020,
-      "year_end": 2025,
+      "year_start": 2022,
+      "year_end": 2026,
       "abstract_sources": [
         "openreview",
         "openalex",
         "s2"
       ],
       "enabled": true,
-      "last_fetched": "2026-07-10T21:50:02.034055+00:00"
+      "openalex_source_id": "S4306419637",
+      "last_fetched": "2026-07-11T19:23:41.950703+00:00"
     },
     {
       "id": "acl",
@@ -165,14 +171,16 @@
       "track": "main",
       "include_workshops": false,
       "include_companion": false,
-      "year_start": 2020,
-      "year_end": 2025,
+      "year_start": 2022,
+      "year_end": 2026,
       "abstract_sources": [
         "acl_anthology",
         "openalex",
         "s2"
       ],
-      "enabled": true
+      "enabled": true,
+      "last_fetched": "2026-07-12T16:28:24.584438+00:00",
+      "openalex_source_id": "S4363608652"
     },
     {
       "id": "emnlp",
@@ -181,14 +189,16 @@
       "track": "main",
       "include_workshops": false,
       "include_companion": false,
-      "year_start": 2020,
-      "year_end": 2025,
+      "year_start": 2022,
+      "year_end": 2026,
       "abstract_sources": [
         "acl_anthology",
         "openalex",
         "s2"
       ],
-      "enabled": true
+      "enabled": true,
+      "last_fetched": "2026-07-13T19:55:01.145933+00:00",
+      "openalex_source_id": "S4363608991"
     },
     {
       "id": "naacl",
@@ -197,61 +207,16 @@
       "track": "main",
       "include_workshops": false,
       "include_companion": false,
-      "year_start": 2020,
-      "year_end": 2025,
+      "year_start": 2022,
+      "year_end": 2026,
       "abstract_sources": [
         "acl_anthology",
         "openalex",
         "s2"
       ],
-      "enabled": true
-    },
-    {
-      "id": "cvpr",
-      "display": "CVPR",
-      "dblp_key": "conf/cvpr",
-      "track": "main",
-      "include_workshops": false,
-      "include_companion": false,
-      "year_start": 2020,
-      "year_end": 2025,
-      "abstract_sources": [
-        "cvf",
-        "openalex",
-        "s2"
-      ],
-      "enabled": true
-    },
-    {
-      "id": "iccv",
-      "display": "ICCV",
-      "dblp_key": "conf/iccv",
-      "track": "main",
-      "include_workshops": false,
-      "include_companion": false,
-      "year_start": 2019,
-      "year_end": 2025,
-      "abstract_sources": [
-        "cvf",
-        "openalex",
-        "s2"
-      ],
-      "enabled": true
-    },
-    {
-      "id": "eccv",
-      "display": "ECCV",
-      "dblp_key": "conf/eccv",
-      "track": "main",
-      "include_workshops": false,
-      "include_companion": false,
-      "year_start": 2020,
-      "year_end": 2024,
-      "abstract_sources": [
-        "openalex",
-        "s2"
-      ],
-      "enabled": true
+      "enabled": true,
+      "last_fetched": "2026-07-13T21:56:38.911208+00:00",
+      "openalex_source_id": "S4363608774"
     },
     {
       "id": "aaai",
@@ -260,13 +225,15 @@
       "track": "main",
       "include_workshops": false,
       "include_companion": false,
-      "year_start": 2020,
-      "year_end": 2025,
+      "year_start": 2022,
+      "year_end": 2026,
       "abstract_sources": [
         "openalex",
         "s2"
       ],
-      "enabled": true
+      "enabled": true,
+      "last_fetched": "2026-07-14T11:01:12.277416+00:00",
+      "openalex_source_id": "S4210191458"
     },
     {
       "id": "ijcai",
@@ -275,8 +242,8 @@
       "track": "main",
       "include_workshops": false,
       "include_companion": false,
-      "year_start": 2020,
-      "year_end": 2025,
+      "year_start": 2022,
+      "year_end": 2026,
       "abstract_sources": [
         "openalex",
         "s2"
@@ -290,8 +257,8 @@
       "track": "main",
       "include_workshops": false,
       "include_companion": false,
-      "year_start": 2020,
-      "year_end": 2025,
+      "year_start": 2022,
+      "year_end": 2026,
       "abstract_sources": [
         "openalex",
         "s2"
@@ -305,8 +272,8 @@
       "track": "main",
       "include_workshops": false,
       "include_companion": false,
-      "year_start": 2020,
-      "year_end": 2025,
+      "year_start": 2022,
+      "year_end": 2026,
       "abstract_sources": [
         "openalex",
         "s2"
@@ -320,13 +287,17 @@
       "track": "main",
       "include_workshops": false,
       "include_companion": false,
-      "year_start": 2020,
-      "year_end": 2025,
+      "year_start": 2022,
+      "year_end": 2026,
       "abstract_sources": [
         "openalex",
         "s2"
       ],
       "enabled": true
     }
-  ]
+  ],
+  "conference_defaults": {
+    "year_start": 2022,
+    "year_end": 2026
+  }
 }

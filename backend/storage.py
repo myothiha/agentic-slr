@@ -56,6 +56,7 @@ DEFAULT_METADATA: dict[str, Any] = {
     "exclusion_criteria": [],
     "databases": DEFAULT_DATABASES,
     "conferences": DEFAULT_CONFERENCES,
+    "conference_defaults": {"year_start": 2020, "year_end": 2025},
     "highlight_rules": {"terms": [], "patterns": [], "compiled_at": None, "source": None},
 }
 

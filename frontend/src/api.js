@@ -232,6 +232,58 @@ export const api = {
     request(`/backups/restore/${encodeURIComponent(name)}`, { method: "POST" }),
   deleteBackup: (name) => request(`/backups/${encodeURIComponent(name)}`, { method: "DELETE" }),
 
+  // Conference Search
+  getConferenceDefaults: () => request("/conference-defaults"),
+  setConferenceDefaults: (yearStart, yearEnd, applyToAll = false) =>
+    request("/conference-defaults", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ year_start: yearStart, year_end: yearEnd, apply_to_all: applyToAll }),
+    }),
+  getConferences: () => request("/conferences"),
+  addConference: (payload) =>
+    request("/conferences", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  updateConference: (id, payload) =>
+    request(`/conferences/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  deleteConference: (id) => request(`/conferences/${id}`, { method: "DELETE" }),
+  fetchConference: (id, { refresh = false, year = null } = {}) => {
+    const q = new URLSearchParams();
+    if (refresh) q.set("refresh", "true");
+    if (year) q.set("year", year);
+    const qs = q.toString();
+    return request(`/conferences/${id}/fetch${qs ? `?${qs}` : ""}`, { method: "POST" });
+  },
+  enrichConference: (id, { refresh = false, year = null, openreviewCookie = null } = {}) => {
+    const q = new URLSearchParams();
+    if (refresh) q.set("refresh", "true");
+    if (year) q.set("year", year);
+    const qs = q.toString();
+    const body = openreviewCookie ? { openreview_cookie: openreviewCookie } : {};
+    return request(`/conferences/${id}/enrich${qs ? `?${qs}` : ""}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  },
+  getConferencePapers: (id) => request(`/conferences/${id}/papers`),
+  clearConferencePapers: (id) => request(`/conferences/${id}/papers`, { method: "DELETE" }),
+  clearConferenceAbstracts: (id) => request(`/conferences/${id}/abstracts`, { method: "DELETE" }),
+  getConferenceFilter: () => request("/conference-filter"),
+  runConferenceFilter: (keywordString, useLlm = false) =>
+    request("/conference-filter", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ keyword_string: keywordString, use_llm: useLlm }),
+    }),
+
   // Dashboard
   getDashboard: () => request("/dashboard"),
 };

@@ -4,9 +4,6 @@ import DatabaseManagement from "./pages/DatabaseManagement.jsx";
 import ContextConfiguration from "./pages/ContextConfiguration.jsx";
 import DataIngestion from "./pages/DataIngestion.jsx";
 import DatabasePapers from "./pages/DatabasePapers.jsx";
-import ConferenceManagement from "./pages/ConferenceManagement.jsx";
-import ConferencePapers from "./pages/ConferencePapers.jsx";
-import ConferenceFilter from "./pages/ConferenceFilter.jsx";
 import Deduplication from "./pages/Deduplication.jsx";
 import DeduplicatedList from "./pages/DeduplicatedList.jsx";
 import PageFilter from "./pages/PageFilter.jsx";
@@ -32,13 +29,6 @@ const navGroups = [
     items: [
       { to: "/databases", label: "Database Management" },
       { to: "/ingestion", label: "Data Ingestion" },
-    ],
-  },
-  {
-    heading: "Conference Search",
-    items: [
-      { to: "/conferences", label: "Conference Management", end: true },
-      { to: "/conferences/filter", label: "Keyword Filtering" },
     ],
   },
   {
@@ -114,9 +104,6 @@ export default function App() {
           <Route path="/databases" element={<DatabaseManagement />} />
           <Route path="/databases/:id" element={<DatabasePapers />} />
           <Route path="/ingestion" element={<DataIngestion />} />
-          <Route path="/conferences" element={<ConferenceManagement />} />
-          <Route path="/conferences/filter" element={<ConferenceFilter />} />
-          <Route path="/conferences/:id" element={<ConferencePapers />} />
           <Route path="/deduplication" element={<Deduplication />} />
           <Route path="/deduplication/papers" element={<DeduplicatedList />} />
           <Route path="/page-filter" element={<PageFilter />} />

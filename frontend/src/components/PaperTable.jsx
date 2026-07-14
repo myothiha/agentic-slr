@@ -198,18 +198,6 @@ function PaperRow({ p, open, onToggle }) {
                     </p>
                   </div>
                 )}
-                {(p.abstract_source || p.abstract === "") && p.database_id === "dblp_conf" && (
-                  <div>
-                    <p className="text-xs font-semibold uppercase text-slate-500 mb-1">
-                      Abstract source
-                    </p>
-                    <p className="text-slate-700">
-                      {p.abstract_source
-                        ? `${p.abstract_source}${p.match_method ? ` (${p.match_method})` : ""}`
-                        : "— not enriched"}
-                    </p>
-                  </div>
-                )}
                 {p.url && (
                   <div>
                     <p className="text-xs font-semibold uppercase text-slate-500 mb-1">URL</p>

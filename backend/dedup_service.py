@@ -82,6 +82,40 @@ def run(priority_order: Optional[list[str]] = None) -> dict[str, Any]:
     return get_report()
 
 
+def reconcile() -> Optional[dict[str, Any]]:
+    """Re-run deduplication over the *current* databases after the inputs change.
+
+    Used when a database's papers are added or emptied: because deduplication is
+    deterministic (DOI/normalised-title based), re-running yields the same result
+    for every unchanged database, while papers from an emptied database simply
+    drop out and any paper that was only a duplicate *of* a removed paper becomes
+    kept again. The chosen priority order and manual "restore" overrides are
+    preserved. Downstream stages (page filter, screening, full-text, tagging)
+    reconcile themselves against the new kept set, keeping their per-paper
+    decisions by index. No-op if deduplication has never been run.
+    """
+    state = load_state()
+    if state is None:
+        return None
+    priority = state.get("priority_order")
+    restored = {
+        p["index"] for p in state["annotated"] if p.get("dedup_status") == "restored"
+    }
+    run(priority_order=priority)
+    if restored:
+        new = load_state()
+        touched = False
+        for p in new["annotated"]:
+            # Re-apply a manual restore only where the paper is still a detected
+            # duplicate (if its original was removed it is already kept).
+            if p.get("index") in restored and p.get("duplicate_of") is not None:
+                p["dedup_status"] = "restored"
+                touched = True
+        if touched:
+            _write_all(new)
+    return get_report()
+
+
 def load_state() -> Optional[dict[str, Any]]:
     if not STATE_FILE.exists():
         return None

@@ -11,7 +11,7 @@ Endpoints
   DELETE /api/databases/{db_id}     -> remove a database (and its papers)
   POST /api/ingest/{db_id}          -> upload + ingest files
   GET  /api/papers/{db_id}          -> list papers for a database
-  DELETE /api/papers/{db_id}        -> clear a database's papers (?cascade resets downstream)
+  DELETE /api/papers/{db_id}        -> clear a database's papers (downstream is left intact)
   GET  /api/papers/{db_id}/raw-files            -> list retained original uploads
   GET  /api/papers/{db_id}/raw-files/{filename} -> download an original upload
   GET  /api/dashboard               -> high-level pipeline overview
@@ -203,21 +203,19 @@ def get_papers(db_id: str):
 
 
 @app.delete("/api/papers/{db_id}")
-def clear_papers(db_id: str, cascade: bool = False):
-    """Empty a database's raw paper list.
+def clear_papers(db_id: str):
+    """Empty a database's raw paper list. The database entry itself stays.
 
-    When ``cascade`` is true, also clear the downstream deduplication,
-    page-filter, and screening results, since those are aggregate views
-    derived from the raw papers and become stale once papers are removed.
+    Only *this* database's papers are removed downstream: after emptying, we
+    re-reconcile deduplication over the remaining databases (deterministic, so
+    every other database keeps its result and manual restores), and page filter,
+    screening, full-text and tagging then reconcile against the new kept set —
+    preserving each surviving paper's decision by index. No other database's work
+    is discarded. (No-op reconcile if deduplication hasn't been run yet.)
     """
     storage.delete_papers(db_id)
-    if cascade:
-        dedup_service.clear()
-        page_filter_service.clear()
-        screening_service.clear()
-        full_text_service.clear()
-        tagging_service.clear()
-    return {"cleared": db_id, "cascade": cascade}
+    dedup_service.reconcile()
+    return {"cleared": db_id}
 
 
 @app.get("/api/papers/{db_id}/raw-files")

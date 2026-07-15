@@ -39,17 +39,15 @@ export default function DatabaseManagement() {
     if (!db.paper_count) return;
     if (
       !confirm(
-        `Empty the paper list for "${db.name}"? This deletes all ${db.paper_count} ingested paper(s). The database itself stays.`
+        `Empty the paper list for "${db.name}"? This deletes all ${db.paper_count} ingested paper(s). The database itself stays.\n\n` +
+          "Only these papers are removed from the pipeline — deduplication is " +
+          "re-reconciled automatically, and every other database's screening, " +
+          "tagging and full-text decisions are preserved."
       )
     )
       return;
-    const cascade = confirm(
-      "Also reset the downstream results derived from these papers?\n\n" +
-        "OK — also clear deduplication, page-filter, and screening results.\n" +
-        "Cancel — empty papers only."
-    );
     try {
-      await api.clearPapers(db.id, cascade);
+      await api.clearPapers(db.id);
       await load();
     } catch (err) {
       alert(err.message);

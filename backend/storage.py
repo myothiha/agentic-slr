@@ -20,7 +20,6 @@ DEFAULT_DATABASES = [
 ]
 
 
-
 DEFAULT_METADATA: dict[str, Any] = {
     "title": "",
     "research_questions": "",

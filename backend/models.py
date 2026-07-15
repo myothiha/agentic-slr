@@ -58,6 +58,14 @@ class DatabaseUpdate(BaseModel):
     proxy_suffix: Optional[str] = None
 
 
+class ConferenceImportRequest(BaseModel):
+    """Import filtered papers from a running conference-toolkit instance."""
+    url: str
+    keyword_string: str = ""
+    venue_ids: list[str] = Field(default_factory=list)
+    use_llm: bool = False
+
+
 class Paper(BaseModel):
     index: str
     database: str

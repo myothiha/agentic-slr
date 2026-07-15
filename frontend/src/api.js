@@ -232,6 +232,21 @@ export const api = {
     request(`/backups/restore/${encodeURIComponent(name)}`, { method: "POST" }),
   deleteBackup: (name) => request(`/backups/${encodeURIComponent(name)}`, { method: "DELETE" }),
 
+  // Conference Import (pull filtered papers from a conference-toolkit instance)
+  listToolkitConferences: (url) =>
+    request(`/conference-import/venues?url=${encodeURIComponent(url)}`),
+  importConferencePapers: ({ url, keywordString, venueIds, useLlm = false }) =>
+    request("/conference-import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url,
+        keyword_string: keywordString,
+        venue_ids: venueIds,
+        use_llm: useLlm,
+      }),
+    }),
+
   // Dashboard
   getDashboard: () => request("/dashboard"),
 };

@@ -44,10 +44,11 @@
       "priority": 4
     },
     {
-      "id": "aaai",
-      "name": "AAAI",
-      "prefix": "AAAI",
-      "priority": 5
+      "id": "dblp_conf",
+      "name": "DBLP Conferences",
+      "prefix": "CONF",
+      "priority": 50,
+      "proxy_suffix": null
     }
   ],
   "highlight_rules": {

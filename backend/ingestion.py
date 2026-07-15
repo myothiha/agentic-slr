@@ -139,6 +139,70 @@ def ingest_files(
     }
 
 
+def ingest_records(
+    database_id: str,
+    records: list[dict[str, Any]],
+    *,
+    source_label: str = "import",
+) -> dict[str, Any]:
+    """Append already-parsed records to a database's paper list.
+
+    Like ``ingest_files`` but the caller supplies canonical record dicts
+    directly (e.g. from an external API) rather than file bytes to parse. Each
+    record may carry: title, authors, year, abstract, keywords, doi, venue,
+    url, early_access, source_file, raw. Incoming records that duplicate the
+    existing list or each other (by DOI, then title+year) are skipped.
+    """
+    metadata = storage.load_metadata()
+    db = next((d for d in metadata["databases"] if d["id"] == database_id), None)
+    if db is None:
+        raise ValueError(f"Unknown database id: {database_id}")
+
+    existing = storage.load_papers(database_id)
+    seq = _next_seq(existing)
+    prefix = db["prefix"]
+    seen = _Seen(existing)
+
+    added: list[dict[str, Any]] = []
+    skipped = 0
+    for rec in records:
+        title = rec.get("title", "")
+        doi = rec.get("doi", "")
+        year = rec.get("year")
+        if seen.contains(doi, title, year):
+            skipped += 1
+            continue
+        seq += 1
+        added.append({
+            "index": f"{prefix}-{seq:03d}",
+            "database": db["name"],
+            "database_id": database_id,
+            "title": title,
+            "authors": rec.get("authors", []),
+            "year": year,
+            "abstract": rec.get("abstract", ""),
+            "keywords": rec.get("keywords", []),
+            "doi": doi,
+            "venue": rec.get("venue", ""),
+            "url": rec.get("url", ""),
+            "early_access": rec.get("early_access", False),
+            "source_file": rec.get("source_file", source_label),
+            "raw": rec.get("raw", {}),
+        })
+        seen.add(doi, title, year)
+
+    combined = existing + added
+    storage.save_papers(database_id, combined)
+    return {
+        "database_id": database_id,
+        "database": db["name"],
+        "added": len(added),
+        "skipped": skipped,
+        "total": len(combined),
+        "index_range": _index_range(combined, prefix),
+    }
+
+
 def _index_range(papers: list[dict[str, Any]], prefix: str) -> str | None:
     seqs = []
     for p in papers:

@@ -4,6 +4,7 @@ import DatabaseManagement from "./pages/DatabaseManagement.jsx";
 import ContextConfiguration from "./pages/ContextConfiguration.jsx";
 import DataIngestion from "./pages/DataIngestion.jsx";
 import DatabasePapers from "./pages/DatabasePapers.jsx";
+import ConferenceImport from "./pages/ConferenceImport.jsx";
 import Deduplication from "./pages/Deduplication.jsx";
 import DeduplicatedList from "./pages/DeduplicatedList.jsx";
 import PageFilter from "./pages/PageFilter.jsx";
@@ -29,6 +30,7 @@ const navGroups = [
     items: [
       { to: "/databases", label: "Database Management" },
       { to: "/ingestion", label: "Data Ingestion" },
+      { to: "/conference-import", label: "Conference Import" },
     ],
   },
   {
@@ -104,6 +106,7 @@ export default function App() {
           <Route path="/databases" element={<DatabaseManagement />} />
           <Route path="/databases/:id" element={<DatabasePapers />} />
           <Route path="/ingestion" element={<DataIngestion />} />
+          <Route path="/conference-import" element={<ConferenceImport />} />
           <Route path="/deduplication" element={<Deduplication />} />
           <Route path="/deduplication/papers" element={<DeduplicatedList />} />
           <Route path="/page-filter" element={<PageFilter />} />

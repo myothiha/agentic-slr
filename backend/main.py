@@ -36,6 +36,7 @@ from agents.keyword_highlighter import update_metadata_highlighting
 from . import (
     analysis_service,
     backup_service,
+    conference_import_service,
     dedup_service,
     full_text_service,
     ingestion,
@@ -46,6 +47,7 @@ from . import (
     tagging_service,
 )
 from .models import (
+    ConferenceImportRequest,
     ContextUpdate,
     DatabaseCreate,
     DatabaseUpdate,
@@ -235,6 +237,33 @@ def download_raw_file(db_id: str, filename: str):
         filename=fp.name,
         media_type="application/octet-stream",
     )
+
+
+# --------------------------------------------------------------------------- #
+# Conference Import — pull filtered papers from a conference-toolkit instance
+# --------------------------------------------------------------------------- #
+@app.get("/api/conference-import/venues")
+def conference_import_venues(url: str):
+    """List the venues a running conference-toolkit has registered."""
+    try:
+        return conference_import_service.list_remote_venues(url)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.post("/api/conference-import")
+def conference_import(payload: ConferenceImportRequest):
+    """Filter (via the toolkit) + import matching papers into the pipeline."""
+    try:
+        return conference_import_service.import_papers(
+            payload.url, payload.keyword_string, payload.venue_ids, use_llm=payload.use_llm
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e))
 
 
 # --------------------------------------------------------------------------- #

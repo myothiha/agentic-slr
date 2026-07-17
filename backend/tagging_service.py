@@ -37,12 +37,17 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from agents.keyword_extraction import extract_keywords, normalize_tag
+from agents.keyword_extraction import (
+    DEFAULT_SOURCES,
+    _clean_sources as clean_sources,
+    extract_keywords,
+    normalize_tag,
+)
 from agents.keyword_suggester import describe_tags
 from agents.keyword_suggester import suggest as suggest_definition
 from agents.llm import get_chat_model, provider_name
 
-from . import paths, screening_service
+from . import full_text_service, paths, screening_service
 
 _lock = threading.Lock()
 
@@ -135,6 +140,7 @@ def _load() -> dict[str, Any]:
         d.setdefault("preferred", [])
         d.setdefault("tag_descriptions", {})
         d.setdefault("groups", [])
+        d.setdefault("sources", list(DEFAULT_SOURCES))
     for p in data["papers"].values():
         p.setdefault("tags", {})
         p.setdefault("evidence", {})
@@ -172,6 +178,43 @@ def _slug(name: str, existing: set[str]) -> str:
         field = f"{base}_{n}"
         n += 1
     return field
+
+
+def eligible_papers() -> list[dict[str, Any]]:
+    """Include papers that have extracted full text — the set extraction runs on.
+
+    Keyword extraction only tags papers whose full text was retrieved, so the
+    keyword analysis stays consistent with the papers we actually hold PDFs for.
+    """
+    extracted = full_text_service.extracted_indexes()
+    return [p for p in screening_service.included_papers() if p.get("index") in extracted]
+
+
+def _eligible_index_set() -> set[str]:
+    return {p.get("index") for p in eligible_papers()}
+
+
+def stale_paper_count() -> int:
+    """Tagged papers that no longer qualify (not in the current full-text set).
+
+    These are usually leftovers from a run made before extraction was gated to
+    full-text papers; they surface in analysis without a downloadable PDF.
+    """
+    state = _load()
+    elig = _eligible_index_set()
+    return sum(1 for idx in state["papers"] if idx not in elig)
+
+
+def prune_non_fulltext() -> dict[str, Any]:
+    """Drop every tagged paper that isn't in the current full-text set."""
+    state = _load()
+    elig = _eligible_index_set()
+    removed = [idx for idx in list(state["papers"].keys()) if idx not in elig]
+    for idx in removed:
+        del state["papers"][idx]
+    if removed:
+        _save(state)
+    return {"removed": len(removed)}
 
 
 def _find(state: dict[str, Any], field: str) -> Optional[dict[str, Any]]:
@@ -217,7 +260,8 @@ def _clean_list(values: Any) -> list[str]:
     return out
 
 
-def _dim_summary(state: dict[str, Any], dim: dict[str, Any], include_total: int) -> dict[str, Any]:
+def _dim_summary(state: dict[str, Any], dim: dict[str, Any], include_total: int,
+                 fulltext_total: int = 0) -> dict[str, Any]:
     return {
         "field": dim["field"],
         "name": dim["name"],
@@ -228,6 +272,7 @@ def _dim_summary(state: dict[str, Any], dim: dict[str, Any], include_total: int)
         "unique_tags": len(_tag_counts(state, dim["field"])),
         "group_count": len(dim["groups"]),
         "include_total": include_total,
+        "fulltext_total": fulltext_total,
     }
 
 
@@ -237,16 +282,21 @@ def _dim_summary(state: dict[str, Any], dim: dict[str, Any], include_total: int)
 def list_dimensions() -> dict[str, Any]:
     state = _load()
     include_total = len(screening_service.included_papers())
+    fulltext_total = len(eligible_papers())
     return {
         "llm_available": get_chat_model() is not None,
         "provider": provider_name(),
         "include_total": include_total,
+        "fulltext_total": fulltext_total,
+        "stale_total": stale_paper_count(),
         "include_source": screening_service.include_source(),
-        "dimensions": [_dim_summary(state, d, include_total) for d in state["dimensions"]],
+        "dimensions": [_dim_summary(state, d, include_total, fulltext_total)
+                       for d in state["dimensions"]],
     }
 
 
-def add_dimension(name: str, description: str = "", preferred: Any = None) -> dict[str, Any]:
+def add_dimension(name: str, description: str = "", preferred: Any = None,
+                  sources: Any = None) -> dict[str, Any]:
     name = (name or "").strip()
     if not name:
         raise ValueError("Dimension name is required.")
@@ -259,11 +309,13 @@ def add_dimension(name: str, description: str = "", preferred: Any = None) -> di
         "preferred": _clean_list(preferred),
         "tag_descriptions": {},
         "groups": [],
+        "sources": clean_sources(sources),
         "updated_at": _now(),
     }
     state["dimensions"].append(dim)
     _save(state)
-    return _dim_summary(state, dim, len(screening_service.included_papers()))
+    return _dim_summary(state, dim, len(screening_service.included_papers()),
+                        len(eligible_papers()))
 
 
 def update_dimension(
@@ -272,6 +324,7 @@ def update_dimension(
     description: Optional[str],
     preferred: Any = None,
     tag_descriptions: Optional[dict[str, str]] = None,
+    sources: Any = None,
 ) -> dict[str, Any]:
     state = _load()
     dim = _require(state, field)
@@ -284,6 +337,8 @@ def update_dimension(
         dim["description"] = description.strip()
     if preferred is not None:
         dim["preferred"] = _clean_list(preferred)
+    if sources is not None:
+        dim["sources"] = clean_sources(sources)
     if tag_descriptions is not None:
         for k, v in tag_descriptions.items():
             tag = normalize_tag(k)
@@ -291,7 +346,8 @@ def update_dimension(
                 dim["tag_descriptions"][tag] = str(v or "").strip()
     dim["updated_at"] = _now()
     _save(state)
-    return _dim_summary(state, dim, len(screening_service.included_papers()))
+    return _dim_summary(state, dim, len(screening_service.included_papers()),
+                        len(eligible_papers()))
 
 
 def delete_dimension(field: str) -> None:
@@ -473,16 +529,53 @@ def _describe_missing_tags(state: dict[str, Any], dim: dict[str, Any]) -> None:
             dim["tag_descriptions"][t] = d
 
 
+def _clear_dimension_papers(state: dict[str, Any], field: str) -> None:
+    """Strip ONLY this dimension's tags/evidence/processed from every paper.
+
+    Papers left without any tags on any dimension are dropped. Other dimensions'
+    tags are never touched, so a force re-run of one dimension can't disturb the
+    others. The dimension's own definition (description, preferred vocabulary,
+    tag descriptions, groups, sources) is preserved — only extracted paper tags
+    are cleared, so extraction genuinely starts from a clean slate.
+    """
+    for idx in list(state["papers"].keys()):
+        p = state["papers"][idx]
+        p.get("tags", {}).pop(field, None)
+        p.get("evidence", {}).pop(field, None)
+        p.get("processed", {}).pop(field, None)
+        if not p.get("tags"):
+            del state["papers"][idx]
+
+
 def run_extraction(field: str, limit: Optional[int] = None, force: bool = False) -> dict[str, Any]:
     state = _load()
     dim = _require(state, field)
     description = dim.get("description", "")
 
-    include = screening_service.included_papers()
+    include_total = len(screening_service.included_papers())
+    eligible = eligible_papers()
+    fulltext_total = len(eligible)
     if not description.strip():
-        return _summary(state, dim, include, 0, 0, 0, 0,
+        return _summary(state, dim, include_total, fulltext_total, 0, 0, 0, 0,
                         "Set a description for this dimension first.",
                         available=get_chat_model() is not None)
+    if not eligible:
+        return _summary(state, dim, include_total, fulltext_total, 0, 0, 0, 0,
+                        "No included papers have extracted full text yet — run "
+                        "full-text extraction first.",
+                        available=get_chat_model() is not None)
+
+    # Force re-run means "start from the beginning": wipe THIS dimension's tags
+    # from every paper (and persist it) before re-extracting, so stale tags on
+    # papers that won't be re-tagged don't linger. Scoped to `field` only.
+    # Guard on LLM availability so we never clear tags we then can't regenerate.
+    if force:
+        if get_chat_model() is None:
+            return _summary(state, dim, include_total, fulltext_total, 0, 0, 0, 0,
+                            "LLM is not configured — cannot re-run. Existing tags "
+                            "were left untouched.", available=False)
+        _clear_dimension_papers(state, field)
+        _save(state)
 
     model_name = provider_name()
     papers = state["papers"]
@@ -494,8 +587,10 @@ def run_extraction(field: str, limit: Optional[int] = None, force: bool = False)
     preferred_payload = [
         {"tag": t, "description": descs.get(t, "")} for t in dim.get("preferred", [])
     ]
+    sources = clean_sources(dim.get("sources"))
+    needs_fulltext = "fulltext" in sources
 
-    for paper in include:
+    for paper in eligible:
         idx = paper.get("index")
         if not idx:
             continue
@@ -506,7 +601,9 @@ def run_extraction(field: str, limit: Optional[int] = None, force: bool = False)
         if limit is not None and processed >= limit:
             break
 
-        res = extract_keywords(paper, description, preferred=preferred_payload, max_tags=MAX_TAGS)
+        full_text = full_text_service.get_extracted_text(idx) if needs_fulltext else None
+        res = extract_keywords(paper, description, preferred=preferred_payload,
+                               max_tags=MAX_TAGS, sources=sources, full_text=full_text)
         if not res.get("available"):
             unavailable = True
             failed += 1
@@ -552,18 +649,21 @@ def run_extraction(field: str, limit: Optional[int] = None, force: bool = False)
         first = errors[0]
         note = (f"No papers were tagged — every attempt failed. First error: {first}"
                 if processed == 0 else f"{failed} paper(s) failed. First error: {first}")
-    return _summary(state, dim, include, processed, tagged, skipped, failed, note,
+    return _summary(state, dim, include_total, fulltext_total, processed, tagged,
+                    skipped, failed, note,
                     available=not unavailable or processed > 0, errors=errors[:3])
 
 
-def _summary(state, dim, include, processed, tagged, skipped, failed, note, available, errors=None):
+def _summary(state, dim, include_total, fulltext_total, processed, tagged, skipped,
+             failed, note, available, errors=None):
     return {
         "field": dim["field"],
         "processed": processed,
         "tagged": tagged,
         "skipped": skipped,
         "failed": failed,
-        "include_total": len(include),
+        "include_total": include_total,
+        "fulltext_total": fulltext_total,
         "already_processed": len(_dim_papers(state, dim["field"])),
         "unique_tags": len(_tag_counts(state, dim["field"])),
         "llm_available": available,
@@ -590,11 +690,14 @@ def get_state(field: str) -> dict[str, Any]:
         "name": dim["name"],
         "description": dim.get("description", ""),
         "preferred": dim.get("preferred", []),
+        "sources": clean_sources(dim.get("sources")),
         "tag_descriptions": descs,
         "updated_at": dim.get("updated_at"),
         "llm_available": get_chat_model() is not None,
         "provider": provider_name(),
         "include_total": len(include),
+        "fulltext_total": len(eligible_papers()),
+        "stale_total": stale_paper_count(),
         "include_source": screening_service.include_source(),
         "processed_total": len(_dim_papers(state, field)),
         "unique_tags": len(counts),

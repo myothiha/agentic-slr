@@ -125,6 +125,36 @@ export const api = {
       body: form,
     });
   },
+  // Direct-download URLs (used as <a href> so the browser saves the file).
+  pdfDownloadUrl: (index) =>
+    `${BASE}/full-text/papers/${encodeURIComponent(index)}/pdf`,
+  downloadAllPdfsUrl: (databaseId = null) =>
+    `${BASE}/full-text/download-all${
+      databaseId ? `?database_id=${encodeURIComponent(databaseId)}` : ""
+    }`,
+  // Zip the PDFs for a specific set of paper indexes and save it in the browser.
+  downloadPdfsZip: async (indexes, filename = "papers_pdfs.zip") => {
+    const res = await fetch(`${BASE}/full-text/download-zip`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ indexes }),
+    });
+    if (!res.ok) {
+      let detail = res.statusText;
+      try {
+        detail = (await res.json()).detail || detail;
+      } catch {
+        /* ignore */
+      }
+      throw new Error(detail);
+    }
+    const blob = await res.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  },
   markPdfUnavailable: (index) =>
     request(`/full-text/papers/${encodeURIComponent(index)}/unavailable`, { method: "POST" }),
   deletePdf: (index) =>
@@ -172,6 +202,8 @@ export const api = {
       body: JSON.stringify({ source, target }),
     }),
   getTaggingPapers: (field) => request(`/tagging/dimensions/${field}/papers`),
+  pruneTaggingNonFulltext: () =>
+    request("/tagging/prune-non-fulltext", { method: "POST" }),
   getTaggingCategories: (field) => request(`/tagging/dimensions/${field}/categories`),
   createTaggingGroup: (field, payload) =>
     request(`/tagging/dimensions/${field}/groups`, {

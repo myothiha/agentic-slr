@@ -38,9 +38,12 @@ Design notes
 """
 from __future__ import annotations
 
+import io
 import json
 import os
+import re
 import threading
+import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -217,6 +220,19 @@ def included_papers() -> list[dict[str, Any]]:
     return screening_service.included_papers()
 
 
+def extracted_indexes() -> set[str]:
+    """Indexes of papers whose full text has been successfully extracted.
+
+    Used by keyword extraction to restrict tagging to papers that actually have
+    full text available.
+    """
+    state = _read()
+    return {
+        idx for idx, rec in state.get("records", {}).items()
+        if rec.get("status") == "extracted"
+    }
+
+
 def _pdf_path(index: str):
     return PDF_DIR / f"{index}.pdf"
 
@@ -294,6 +310,10 @@ def get_dashboard() -> dict[str, Any]:
     for k in sorted(records.keys()):
         rec = dict(records[k])
         rec["download_url"] = _download_url_for(rec, proxy_map)
+        # Whether a raw PDF file actually exists on disk — the reliable signal
+        # for offering a download, independent of text-extraction status (a
+        # scanned PDF has a file but fails extraction with no_text_layer).
+        rec["has_pdf"] = _pdf_path(k).exists()
         ordered.append(rec)
     return {
         "papers": ordered,
@@ -363,6 +383,78 @@ def get_extracted_text(index: str) -> Optional[str]:
     if not fp.exists():
         return None
     return fp.read_text(encoding="utf-8")
+
+
+# --------------------------------------------------------------------------- #
+# Downloading stored PDFs, named by paper title
+# --------------------------------------------------------------------------- #
+# Characters that are unsafe in filenames across Windows/macOS/Linux.
+_UNSAFE_FILENAME_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+_MAX_FILENAME_STEM = 180  # leave headroom for a " (n)" suffix + ".pdf"
+
+
+def title_filename(title: Optional[str], index: str) -> str:
+    """A safe ``<title>.pdf`` filename for a paper.
+
+    Strips filesystem-unsafe characters and collapses whitespace. Falls back to
+    the paper ``index`` when the title is empty after cleaning.
+    """
+    stem = _UNSAFE_FILENAME_RE.sub(" ", title or "").strip()
+    stem = re.sub(r"\s+", " ", stem).strip(" .")
+    if len(stem) > _MAX_FILENAME_STEM:
+        stem = stem[:_MAX_FILENAME_STEM].strip(" .")
+    if not stem:
+        stem = str(index)
+    return f"{stem}.pdf"
+
+
+def pdf_download(index: str) -> Optional[tuple[Any, str]]:
+    """Return ``(path, download_filename)`` for a paper's stored PDF, or None.
+
+    ``download_filename`` is derived from the paper title so the saved file is
+    human-readable rather than ``<index>.pdf``.
+    """
+    path = _pdf_path(index)
+    if not path.exists():
+        return None
+    rec = _read()["records"].get(index) or {}
+    return path, title_filename(rec.get("title"), index)
+
+
+def build_pdf_zip(
+    database_id: Optional[str] = None,
+    indexes: Optional[list[str]] = None,
+) -> tuple[bytes, int]:
+    """Zip stored PDFs, each named by its title.
+
+    Scope: all included papers, or one database (``database_id``), or an explicit
+    set of paper ``indexes`` (used by the analysis drill-down list). Returns
+    ``(zip_bytes, file_count)``. Duplicate titles are disambiguated with a
+    numeric suffix so no entry is silently overwritten.
+    """
+    state = _read()
+    index_set = set(indexes) if indexes is not None else None
+    used: dict[str, int] = {}
+    buf = io.BytesIO()
+    count = 0
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for idx in sorted(state["records"].keys()):
+            rec = state["records"][idx]
+            if database_id is not None and rec.get("database_id") != database_id:
+                continue
+            if index_set is not None and idx not in index_set:
+                continue
+            path = _pdf_path(idx)
+            if not path.exists():
+                continue
+            name = title_filename(rec.get("title"), idx)
+            seen = used.get(name.lower(), 0)
+            used[name.lower()] = seen + 1
+            if seen:
+                name = f"{name[:-4]} ({seen}).pdf"
+            zf.write(str(path), arcname=name)
+            count += 1
+    return buf.getvalue(), count
 
 
 # --------------------------------------------------------------------------- #

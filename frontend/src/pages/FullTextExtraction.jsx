@@ -100,6 +100,9 @@ export default function FullTextExtraction() {
     if (c[p.status] !== undefined) c[p.status] += 1;
   }
 
+  // Papers that have a stored PDF on disk (downloadable), for the bulk zip button.
+  const pdfCount = dbScoped.filter((p) => p.has_pdf).length;
+
   if (totalIncluded === 0) {
     return (
       <div>
@@ -259,6 +262,15 @@ export default function FullTextExtraction() {
         >
           {busy === "scan" ? "Scanning…" : "Scan Local PDF Directory"}
         </button>
+        {pdfCount > 0 && (
+          <a
+            href={api.downloadAllPdfsUrl(dbId)}
+            className="btn-secondary"
+            title="Download every stored PDF as a zip, each file named by its paper title"
+          >
+            Download All PDFs ({pdfCount})
+          </a>
+        )}
         <span className="text-xs text-slate-400">
           Auto-download fetches open-access PDFs only; proxied papers (e.g. IEEE) are
           download-only via each row's link. Or drop files named{" "}
@@ -389,10 +401,19 @@ function PaperActions({ paper, onUpload, onPreview, onDelete, onMarkUnavailable 
   const fileRef = useRef(null);
   const isExtracted = paper.status === "extracted";
   const isUnavailable = paper.status === "unavailable";
-  const hasPdf = isExtracted || paper.status === "downloading";
+  const hasPdf = paper.has_pdf;
 
   return (
     <div className="flex flex-wrap items-center gap-1">
+      {hasPdf && (
+        <a
+          href={api.pdfDownloadUrl(paper.index)}
+          className="rounded border border-blue-300 bg-white px-2 py-0.5 text-xs text-blue-600 hover:bg-blue-50"
+          title="Download the stored PDF, named by paper title"
+        >
+          Download PDF
+        </a>
+      )}
       {isExtracted ? (
         <>
           <button

@@ -27,7 +27,7 @@ _PROMPT = (
     "You are tagging a research paper for a systematic literature review.\n\n"
     "The reviewer wants to extract keywords of ONE specific kind, described as:\n"
     "\"{description}\"\n\n"
-    "Read the paper metadata below and extract ALL keyword tags that match this "
+    "Read the paper content below and extract ALL keyword tags that match this "
     "description. There is NO limit on the number of tags — do not restrict "
     "yourself to a few; include EVERY tag that is genuinely relevant to the "
     "paper. Rules:\n"
@@ -39,20 +39,67 @@ _PROMPT = (
     "not 'LoRA fine-tuning of BERT-base'); keep tags reusable across papers.\n"
     "- Do not invent tags unrelated to the described kind.\n"
     "{preferred_block}"
-    "- For EACH tag, quote the exact sentence (or short span) from the Title, "
-    "Author keywords, or Abstract that justifies it. Copy the evidence VERBATIM, "
+    "- For EACH tag, quote the exact sentence (or short span) from the "
+    "{evidence_sources} that justifies it. Copy the evidence VERBATIM, "
     "character-for-character, so it can be located and highlighted in the text. "
     "Do not paraphrase the evidence.\n\n"
     "PAPER\n"
-    "Title: {title}\n"
-    "Year: {year}\n"
-    "Venue: {venue}\n"
-    "Author keywords: {keywords}\n"
-    "Abstract: {abstract}\n\n"
+    "{paper_block}\n\n"
     "Respond with ONLY a JSON object of the form:\n"
     '{{"items": [{{"tag": "tag one", "evidence": "the verbatim supporting '
     'sentence"}}]}}'
 )
+
+# Selectable text sources for extraction. "title"/"abstract"/"keywords" together
+# form the default "metadata" set; "fulltext" adds the extracted PDF body.
+DEFAULT_SOURCES = ["title", "abstract", "keywords"]
+_SOURCE_LABELS = {
+    "title": "Title",
+    "keywords": "Author keywords",
+    "abstract": "Abstract",
+    "fulltext": "Full text",
+}
+# Order the block/evidence list follows regardless of selection order.
+_SOURCE_ORDER = ["title", "keywords", "abstract", "fulltext"]
+
+
+def _clean_sources(sources: Any) -> list[str]:
+    """Normalise a requested source list to known keys, preserving canonical
+    order; fall back to the metadata default when nothing valid is given."""
+    if not sources:
+        return list(DEFAULT_SOURCES)
+    req = {str(s).strip().lower() for s in sources}
+    out = [s for s in _SOURCE_ORDER if s in req]
+    return out or list(DEFAULT_SOURCES)
+
+
+def _paper_block(paper: dict[str, Any], sources: list[str], full_text: str | None) -> str:
+    """Build the PAPER section from the selected fields only. Year and Venue are
+    always included as lightweight bibliographic context."""
+    meta = _paper_meta(paper)
+    lines: list[str] = []
+    if "title" in sources:
+        lines.append(f"Title: {meta['title']}")
+    lines.append(f"Year: {meta['year']}")
+    lines.append(f"Venue: {meta['venue']}")
+    if "keywords" in sources:
+        lines.append(f"Author keywords: {meta['keywords']}")
+    if "abstract" in sources:
+        lines.append(f"Abstract: {meta['abstract']}")
+    if "fulltext" in sources:
+        body = (full_text or "").strip() or "(no extracted full text available)"
+        lines.append(f"Full text:\n{body}")
+    return "\n".join(lines)
+
+
+def _evidence_sources(sources: list[str]) -> str:
+    """Human phrase naming the text fields the model may quote evidence from."""
+    labels = [_SOURCE_LABELS[s] for s in sources if s in _SOURCE_LABELS]
+    if not labels:
+        return "provided text"
+    if len(labels) == 1:
+        return labels[0]
+    return ", ".join(labels[:-1]) + ", or " + labels[-1]
 
 
 def normalize_tag(tag: str) -> str:
@@ -108,6 +155,8 @@ def extract_keywords(
     description: str,
     preferred: Any = None,
     max_tags: int = 50,
+    sources: Any = None,
+    full_text: str | None = None,
 ) -> dict[str, Any]:
     if not (description or "").strip():
         return {"items": [], "tags": [], "available": False,
@@ -122,6 +171,7 @@ def extract_keywords(
             "error": "LLM is not configured. Set a provider API key in .env to enable extraction.",
         }
 
+    src = _clean_sources(sources)
     pref = _normalize_preferred(preferred)
     try:
         from langchain_core.prompts import ChatPromptTemplate
@@ -131,7 +181,8 @@ def extract_keywords(
         result = chain.invoke({
             "description": description.strip(),
             "preferred_block": _preferred_block(pref),
-            **_paper_meta(paper),
+            "evidence_sources": _evidence_sources(src),
+            "paper_block": _paper_block(paper, src, full_text),
         })
         content = getattr(result, "content", str(result))
         items = _parse_items(content, max_tags)

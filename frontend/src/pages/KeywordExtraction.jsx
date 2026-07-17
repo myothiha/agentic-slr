@@ -9,6 +9,17 @@ const PALETTE = [
 ];
 const colorFor = (i) => PALETTE[i % PALETTE.length];
 
+// Text fields the extractor can read. Title/Abstract/Author keywords are the
+// default "metadata" set; Full text adds the extracted PDF body.
+const SOURCE_FIELDS = [
+  { key: "title", label: "Title" },
+  { key: "abstract", label: "Abstract" },
+  { key: "keywords", label: "Author keywords" },
+  { key: "fulltext", label: "Full text" },
+];
+const DEFAULT_SOURCES = ["title", "abstract", "keywords"];
+const srcKey = (arr) => [...(arr || [])].sort().join(",");
+
 function highlightSegments(text, marks) {
   if (!text) return [{ text: "" }];
   const lower = text.toLowerCase();
@@ -48,6 +59,7 @@ export default function KeywordExtraction() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [prefRows, setPrefRows] = useState([]);
+  const [srcSel, setSrcSel] = useState(DEFAULT_SOURCES);
   const [newName, setNewName] = useState("");
   const [newOpen, setNewOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -76,6 +88,7 @@ export default function KeywordExtraction() {
         setDescription(s.description || "");
         const descs = s.tag_descriptions || {};
         setPrefRows((s.preferred || []).map((t) => ({ tag: t, description: descs[t] || "" })));
+        setSrcSel(s.sources?.length ? s.sources : DEFAULT_SOURCES);
         setResult(null);
         setExpanded(null);
       })
@@ -119,6 +132,8 @@ export default function KeywordExtraction() {
     setPrefRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, [key]: val } : r)));
   const addRow = () => setPrefRows((rows) => [...rows, { tag: "", description: "" }]);
   const removeRow = (i) => setPrefRows((rows) => rows.filter((_, idx) => idx !== i));
+  const toggleSource = (key) =>
+    setSrcSel((cur) => (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]));
 
   const suggestField = async (target) => {
     setSuggesting(target);
@@ -171,6 +186,7 @@ export default function KeywordExtraction() {
         description: description.trim(),
         preferred: rows.map((r) => r.tag),
         tag_descriptions,
+        sources: srcSel,
       });
       await loadDims();
       await loadDim(field);
@@ -241,6 +257,25 @@ export default function KeywordExtraction() {
     }
   };
 
+  const pruneStale = async () => {
+    const n = state?.stale_total || 0;
+    if (
+      !confirm(
+        `Remove ${n} tagged paper${n === 1 ? "" : "s"} that no longer have full text? ` +
+          `Their tags across all dimensions will be deleted. This cannot be undone.`
+      )
+    )
+      return;
+    try {
+      const res = await api.pruneTaggingNonFulltext();
+      await loadDim(field);
+      await loadDims();
+      setResult({ note: `Removed ${res.removed} paper(s) without full text.` });
+    } catch (e) {
+      alert(e.message);
+    }
+  };
+
   const runExtraction = async (force = false) => {
     setRunning(true);
     setResult(null);
@@ -267,7 +302,8 @@ export default function KeywordExtraction() {
     !!state &&
     (name.trim() !== (state.name || "") ||
       description.trim() !== (state.description || "") ||
-      rowsKey(cleanRows()) !== stateRowsKey);
+      rowsKey(cleanRows()) !== stateRowsKey ||
+      srcKey(srcSel) !== srcKey(state.sources?.length ? state.sources : DEFAULT_SOURCES));
 
   return (
     <div>
@@ -449,8 +485,41 @@ export default function KeywordExtraction() {
                 new tag when none apply. New tags it creates are auto-described.
               </span>
             </div>
+            {/* Text fields the extractor reads */}
+            <div className="mt-4 border-t border-slate-100 pt-3">
+              <span className="text-xs font-medium text-slate-500">
+                Fields to read for extraction{" "}
+                <span className="font-normal text-slate-400">
+                  (metadata is the default; add Full text to read the PDF body)
+                </span>
+              </span>
+              <div className="mt-2 flex flex-wrap gap-4">
+                {SOURCE_FIELDS.map((f) => (
+                  <label key={f.key} className="flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={srcSel.includes(f.key)}
+                      onChange={() => toggleSource(f.key)}
+                      className="h-4 w-4 rounded border-slate-300"
+                    />
+                    {f.label}
+                    {f.key === "fulltext" && (
+                      <span className="text-xs text-slate-400">(extracted full text only)</span>
+                    )}
+                  </label>
+                ))}
+              </div>
+              {srcSel.length === 0 && (
+                <p className="mt-1 text-xs text-red-500">Select at least one field.</p>
+              )}
+            </div>
+
             <div className="mt-3 flex items-center gap-3">
-              <button onClick={saveDefinition} disabled={saving || !dirty} className="btn-primary">
+              <button
+                onClick={saveDefinition}
+                disabled={saving || !dirty || srcSel.length === 0}
+                className="btn-primary"
+              >
                 {saving ? "Saving…" : "Save definition"}
               </button>
               {!dirty && state.updated_at && <span className="text-xs text-slate-400">Saved</span>}
@@ -459,37 +528,74 @@ export default function KeywordExtraction() {
 
           {/* Run */}
           <div className="mb-5 rounded-lg border border-slate-200 bg-white p-4">
+            {state.fulltext_total === 0 && (
+              <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                None of the {state.include_total} included papers have extracted full
+                text yet. Extraction only runs on papers with full text — retrieve it
+                on the{" "}
+                <Link to="/full-text" className="font-medium text-blue-600 hover:underline">
+                  Full-Text Extraction
+                </Link>{" "}
+                page first.
+              </div>
+            )}
+            {state.stale_total > 0 && (
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                <span>
+                  {state.stale_total} tagged paper{state.stale_total === 1 ? "" : "s"}{" "}
+                  no longer {state.stale_total === 1 ? "has" : "have"} full text (tagged
+                  before this rule). They appear in analysis without a downloadable PDF.
+                </span>
+                <button
+                  onClick={pruneStale}
+                  className="rounded-md border border-amber-300 bg-white px-3 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100"
+                >
+                  Remove {state.stale_total} non-full-text paper{state.stale_total === 1 ? "" : "s"}
+                </button>
+              </div>
+            )}
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="text-sm text-slate-600">
-                <span className="font-medium text-slate-800">{state.include_total}</span>{" "}
-                {state.include_source === "ai" ? (
-                  <span
-                    className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800"
-                    title="No papers are user-confirmed yet, so extraction uses the LLM's screening suggestions."
-                  >
-                    AI-labeled Include
-                  </span>
-                ) : (
-                  "Include"
-                )}{" "}
-                papers · <span className="font-medium text-slate-800">{state.processed_total}</span>{" "}
+                <span className="font-medium text-slate-800">{state.fulltext_total}</span>{" "}
+                papers with full text{" "}
+                <span className="text-slate-400">
+                  (of {state.include_total}{" "}
+                  {state.include_source === "ai" ? (
+                    <span
+                      className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800"
+                      title="No papers are user-confirmed yet, so the Include set uses the LLM's screening suggestions."
+                    >
+                      AI-labeled Include
+                    </span>
+                  ) : (
+                    "Include"
+                  )}
+                  )
+                </span>{" "}
+                · <span className="font-medium text-slate-800">{state.processed_total}</span>{" "}
                 processed · <span className="font-medium text-slate-800">{state.unique_tags}</span>{" "}
                 unique tags
               </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => runExtraction(false)}
-                  disabled={running || !description.trim() || dirty}
+                  disabled={running || !description.trim() || dirty || state.fulltext_total === 0}
                   className="btn-primary"
-                  title={dirty ? "Save the definition first" : ""}
+                  title={
+                    dirty
+                      ? "Save the definition first"
+                      : state.fulltext_total === 0
+                      ? "No papers have extracted full text yet"
+                      : ""
+                  }
                 >
                   {running ? "Extracting…" : "Run extraction"}
                 </button>
                 <button
                   onClick={() => runExtraction(true)}
-                  disabled={running || !description.trim() || dirty}
+                  disabled={running || !description.trim() || dirty || state.fulltext_total === 0}
                   className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-                  title="Re-extract all Include papers for this dimension"
+                  title="Re-extract all full-text papers for this dimension"
                 >
                   Force re-run
                 </button>

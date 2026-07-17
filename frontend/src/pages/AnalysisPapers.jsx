@@ -12,6 +12,8 @@ export default function AnalysisPapers() {
   const [error, setError] = useState(null);
   const [open, setOpen] = useState(null);
   const [query, setQuery] = useState("");
+  const [pdfSet, setPdfSet] = useState(new Set());
+  const [zipBusy, setZipBusy] = useState(false);
 
   const title = params.get("title") || "Papers";
   let filters = [];
@@ -26,12 +28,38 @@ export default function AnalysisPapers() {
     document.title = title;
   }, [params]);
 
+  // Which papers have a stored PDF (from the full-text stage), so we only offer
+  // a download where a file actually exists.
+  useEffect(() => {
+    api
+      .getFullText()
+      .then((ft) => {
+        const s = new Set(
+          (ft.papers || []).filter((p) => p.has_pdf).map((p) => p.index)
+        );
+        setPdfSet(s);
+      })
+      .catch(() => setPdfSet(new Set()));
+  }, []);
+
   if (error) return <ErrorBox message={error} />;
   if (!data) return <p className="text-slate-500">Loading…</p>;
 
   const dimName = Object.fromEntries(data.dimensions.map((d) => [d.field, d.name]));
   const dimColor = Object.fromEntries(data.dimensions.map((d, i) => [d.field, DIM_COLORS[i % DIM_COLORS.length]]));
   const shown = query.trim() ? data.papers.filter((p) => paperMatches(p, query)) : data.papers;
+  const shownWithPdf = shown.filter((p) => pdfSet.has(p.index));
+
+  const downloadPdfs = async () => {
+    setZipBusy(true);
+    try {
+      await api.downloadPdfsZip(shownWithPdf.map((p) => p.index));
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setZipBusy(false);
+    }
+  };
 
   const exportCsv = () => {
     const fields = data.dimensions.map((d) => d.field);
@@ -60,9 +88,21 @@ export default function AnalysisPapers() {
             {query.trim() ? ` of ${data.papers.length}` : ""} papers
           </p>
         </div>
-        <button onClick={exportCsv} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50">
-          Export CSV
-        </button>
+        <div className="flex items-center gap-2">
+          {shownWithPdf.length > 0 && (
+            <button
+              onClick={downloadPdfs}
+              disabled={zipBusy}
+              title="Download the stored PDFs for these papers as a zip, each named by its title"
+              className="rounded-md border border-blue-300 bg-white px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 disabled:opacity-50"
+            >
+              {zipBusy ? "Zipping…" : `Download All PDFs (${shownWithPdf.length})`}
+            </button>
+          )}
+          <button onClick={exportCsv} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50">
+            Export CSV
+          </button>
+        </div>
       </header>
 
       <div className="mb-3">
@@ -94,6 +134,16 @@ export default function AnalysisPapers() {
                     <td className="px-4 py-3 align-top text-slate-500">{p.index}</td>
                     <td className="px-4 py-3 align-top text-slate-800">
                       {p.title}
+                      {pdfSet.has(p.index) && (
+                        <a
+                          href={api.pdfDownloadUrl(p.index)}
+                          onClick={(e) => e.stopPropagation()}
+                          title="Download the stored PDF, named by paper title"
+                          className="ml-2 whitespace-nowrap text-xs text-blue-600 hover:underline"
+                        >
+                          Download PDF
+                        </a>
+                      )}
                       <div className="mt-1 flex flex-wrap gap-1">
                         {data.dimensions.map((d) =>
                           (p.tags?.[d.field] || []).map((t) => (

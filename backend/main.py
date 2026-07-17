@@ -27,7 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 from pydantic import BaseModel
 
@@ -392,6 +392,53 @@ def get_full_text_text(index: str):
     return {"index": index, "text": text, "char_count": len(text)}
 
 
+@app.get("/api/full-text/papers/{index}/pdf")
+def download_full_text_pdf(index: str):
+    """Download a single paper's stored PDF, named by its title."""
+    result = full_text_service.pdf_download(index)
+    if result is None:
+        raise HTTPException(status_code=404, detail="No PDF stored for this paper.")
+    path, filename = result
+    return FileResponse(path=str(path), filename=filename, media_type="application/pdf")
+
+
+@app.get("/api/full-text/download-all")
+def download_full_text_pdfs(database_id: str | None = None):
+    """Download all stored PDFs as a single zip, each named by its paper title.
+
+    Pass ?database_id=<id> to include a single database only.
+    """
+    data, count = full_text_service.build_pdf_zip(database_id)
+    if count == 0:
+        raise HTTPException(status_code=404, detail="No PDFs available to download.")
+    return Response(
+        content=data,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="included_papers_pdfs.zip"'},
+    )
+
+
+class PdfZipRequest(BaseModel):
+    indexes: list[str]
+
+
+@app.post("/api/full-text/download-zip")
+def download_full_text_pdfs_by_index(payload: PdfZipRequest):
+    """Download the stored PDFs for a specific set of paper indexes as one zip.
+
+    Used by the analysis drill-down list, which shows an arbitrary filtered
+    subset of papers rather than a whole database.
+    """
+    data, count = full_text_service.build_pdf_zip(indexes=payload.indexes)
+    if count == 0:
+        raise HTTPException(status_code=404, detail="No PDFs available to download.")
+    return Response(
+        content=data,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="papers_pdfs.zip"'},
+    )
+
+
 @app.post("/api/full-text/auto-download")
 def full_text_auto_download(database_id: str | None = None):
     """Batch Open-Access downloader for 'missing' papers with a DOI.
@@ -541,6 +588,7 @@ class DimensionPayload(BaseModel):
     name: str = ""
     description: str = ""
     preferred: list[str] = []
+    sources: list[str] | None = None
 
 
 class DimensionUpdate(BaseModel):
@@ -548,6 +596,7 @@ class DimensionUpdate(BaseModel):
     description: str | None = None
     preferred: list[str] | None = None
     tag_descriptions: dict[str, str] | None = None
+    sources: list[str] | None = None
 
 
 class ExtractionRequest(BaseModel):
@@ -595,7 +644,7 @@ def list_tagging_dimensions():
 def create_tagging_dimension(payload: DimensionPayload):
     try:
         return tagging_service.add_dimension(
-            payload.name, payload.description, payload.preferred
+            payload.name, payload.description, payload.preferred, payload.sources
         )
     except ValueError as e:
         raise _tagging_error(e)
@@ -606,7 +655,7 @@ def update_tagging_dimension(field: str, payload: DimensionUpdate):
     try:
         return tagging_service.update_dimension(
             field, payload.name, payload.description, payload.preferred,
-            payload.tag_descriptions,
+            payload.tag_descriptions, payload.sources,
         )
     except ValueError as e:
         raise _tagging_error(e)
@@ -675,6 +724,16 @@ def get_tagging_papers(field: str):
         return tagging_service.get_papers(field)
     except ValueError as e:
         raise _tagging_error(e)
+
+
+@app.post("/api/tagging/prune-non-fulltext")
+def prune_tagging_non_fulltext():
+    """Remove tagged papers that aren't in the current full-text set.
+
+    Cleans up leftovers from runs made before extraction was gated to full-text
+    papers, so the analysis list only contains papers with a downloadable PDF.
+    """
+    return tagging_service.prune_non_fulltext()
 
 
 @app.get("/api/tagging/dimensions/{field}/categories")

@@ -265,9 +265,44 @@ def papers_detail(filters: list[dict[str, Any]]) -> dict[str, Any]:
         )
     ]
     matched.sort(key=lambda p: p.get("index") or "")
+
+    dim_name = {d["field"]: d["name"] for d in state["dimensions"]}
+    tag_desc = {d["field"]: d.get("tag_descriptions", {}) for d in state["dimensions"]}
+
+    # Sub-topics: for each keyword-group filter (a category-unit tag filter), list
+    # the member raw tags present among the matched papers, so the detail page can
+    # let the user narrow to / download a specific sub-topic under that group.
+    subtopics = []
+    for f in filters:
+        field = f.get("dimension")
+        if field == YEAR_FIELD or f.get("unit", "category") != "category":
+            continue
+        group = f.get("value")
+        cmap = cmaps.get(field, {})  # raw tag -> category (group) name
+        counter: Counter = Counter()
+        idx_map: dict[str, list[str]] = {}
+        for p in matched:
+            for t in p.get("tags", {}).get(field, []) or []:
+                # A tag belongs to this group if it maps to it, or (ungrouped tag)
+                # equals the group value itself (standalone category).
+                if cmap.get(t, t) == group:
+                    counter[t] += 1
+                    idx_map.setdefault(t, []).append(p.get("index"))
+        subtopics.append({
+            "dimension": field,
+            "dimension_name": dim_name.get(field, field),
+            "group": group,
+            "tags": [
+                {"tag": t, "count": c, "description": tag_desc.get(field, {}).get(t, ""),
+                 "indices": idx_map[t]}
+                for t, c in counter.most_common()
+            ],
+        })
+
     return {
         "dimensions": [{"field": d["field"], "name": d["name"]} for d in state["dimensions"]],
-        "tag_descriptions": {d["field"]: d.get("tag_descriptions", {}) for d in state["dimensions"]},
+        "tag_descriptions": tag_desc,
+        "subtopics": subtopics,
         "papers": [{
             "index": p.get("index"), "title": p.get("title", ""), "year": p.get("year"),
             "database": p.get("database", ""), "abstract": p.get("abstract", ""),

@@ -14,6 +14,9 @@ export default function AnalysisPapers() {
   const [query, setQuery] = useState("");
   const [pdfSet, setPdfSet] = useState(new Set());
   const [zipBusy, setZipBusy] = useState(false);
+  // Selected sub-topics (member tags of the keyword group) — keys are
+  // `${dimension}::${tag}`. Empty = show all papers in the group.
+  const [selectedSubs, setSelectedSubs] = useState(new Set());
 
   const title = params.get("title") || "Papers";
   let filters = [];
@@ -47,8 +50,34 @@ export default function AnalysisPapers() {
 
   const dimName = Object.fromEntries(data.dimensions.map((d) => [d.field, d.name]));
   const dimColor = Object.fromEntries(data.dimensions.map((d, i) => [d.field, DIM_COLORS[i % DIM_COLORS.length]]));
-  const shown = query.trim() ? data.papers.filter((p) => paperMatches(p, query)) : data.papers;
+
+  const subtopics = data.subtopics || [];
+  const subKey = (field, tag) => `${field}::${tag}`;
+  // Paper indices allowed by the current sub-topic selection (OR across selected
+  // sub-topics). Empty selection means no sub-topic filter.
+  const allowedIdx = (() => {
+    if (selectedSubs.size === 0) return null;
+    const s = new Set();
+    subtopics.forEach((g) =>
+      g.tags.forEach((t) => {
+        if (selectedSubs.has(subKey(g.dimension, t.tag))) t.indices.forEach((i) => s.add(i));
+      })
+    );
+    return s;
+  })();
+
+  const shown = data.papers
+    .filter((p) => !allowedIdx || allowedIdx.has(p.index))
+    .filter((p) => !query.trim() || paperMatches(p, query));
   const shownWithPdf = shown.filter((p) => pdfSet.has(p.index));
+
+  const toggleSub = (field, tag) =>
+    setSelectedSubs((prev) => {
+      const next = new Set(prev);
+      const k = subKey(field, tag);
+      next.has(k) ? next.delete(k) : next.add(k);
+      return next;
+    });
 
   const downloadPdfs = async () => {
     setZipBusy(true);
@@ -65,7 +94,7 @@ export default function AnalysisPapers() {
     const fields = data.dimensions.map((d) => d.field);
     const head = ["index", "title", "year", "database", ...fields.map((f) => dimName[f])];
     const rows = [head];
-    data.papers.forEach((p) => {
+    shown.forEach((p) => {
       rows.push([
         p.index, `"${(p.title || "").replace(/"/g, '""')}"`, p.year, p.database,
         ...fields.map((f) => `"${(p.tags?.[f] || []).join("; ")}"`),
@@ -85,7 +114,7 @@ export default function AnalysisPapers() {
           <h2 className="text-2xl font-semibold text-slate-900">{title}</h2>
           <p className="text-slate-500 mt-1">
             {shown.length}
-            {query.trim() ? ` of ${data.papers.length}` : ""} papers
+            {shown.length !== data.papers.length ? ` of ${data.papers.length}` : ""} papers
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -104,6 +133,49 @@ export default function AnalysisPapers() {
           </button>
         </div>
       </header>
+
+      {subtopics.some((g) => g.tags.length > 0) && (
+        <div className="mb-3 rounded-lg border border-slate-200 bg-white p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase text-slate-500">Sub-topics</p>
+            {selectedSubs.size > 0 && (
+              <button
+                onClick={() => setSelectedSubs(new Set())}
+                className="text-xs text-blue-600 hover:underline"
+              >
+                Clear ({selectedSubs.size})
+              </button>
+            )}
+          </div>
+          <p className="mt-0.5 text-xs text-slate-400">
+            Select sub-topics to narrow the list; the search and download buttons apply to the selection.
+          </p>
+          {subtopics.map((g) => (
+            <div key={g.dimension + g.group} className="mt-3">
+              {subtopics.length > 1 && (
+                <p className="mb-1 text-xs font-medium text-slate-500">
+                  {g.dimension_name}: {g.group}
+                </p>
+              )}
+              <div className="flex flex-wrap gap-1.5">
+                {g.tags.map((t) => {
+                  const active = selectedSubs.has(subKey(g.dimension, t.tag));
+                  return (
+                    <button
+                      key={t.tag}
+                      onClick={() => toggleSub(g.dimension, t.tag)}
+                      title={t.description || ""}
+                      className={`rounded-full px-2.5 py-0.5 text-xs ${active ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
+                    >
+                      {t.tag} · {t.count}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="mb-3">
         <input

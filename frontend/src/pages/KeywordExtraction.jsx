@@ -70,6 +70,16 @@ export default function KeywordExtraction() {
   const [mergeSrc, setMergeSrc] = useState("");
   const [mergeDst, setMergeDst] = useState("");
 
+  // Open the detailed paper list (abstract + tags) for a single tag in a new
+  // browser tab — the same view used by the Keyword Analysis charts.
+  const openTagPapers = (tag) => {
+    const filters = [{ dimension: field, unit: "tag", value: tag }];
+    const qs = `title=${encodeURIComponent(`${state?.name || field}: ${tag}`)}&f=${encodeURIComponent(
+      JSON.stringify(filters)
+    )}`;
+    window.open(`/analysis/papers?${qs}`, "_blank");
+  };
+
   const loadDims = () =>
     api.listTaggingDimensions().then((d) => {
       setDims(d);
@@ -628,16 +638,22 @@ export default function KeywordExtraction() {
           {state.tag_pool.length > 0 && (
             <div className="mb-5 rounded-lg border border-slate-200 bg-white p-4">
               <h3 className="text-sm font-medium text-slate-700">Tag pool ({state.tag_pool.length})</h3>
+              <p className="mt-0.5 text-xs text-slate-400">Click a tag to see its papers.</p>
               <ul className="mt-3 divide-y divide-slate-100">
                 {state.tag_pool.map((t) => (
-                  <li key={t.tag} className="flex items-start justify-between gap-4 py-1.5">
+                  <li
+                    key={t.tag}
+                    onClick={() => openTagPapers(t.tag)}
+                    title={`Open the ${t.count} paper${t.count === 1 ? "" : "s"} tagged "${t.tag}"`}
+                    className="flex cursor-pointer items-start justify-between gap-4 rounded py-1.5 px-1 -mx-1 hover:bg-slate-50"
+                  >
                     <div>
-                      <span className="text-sm font-medium text-slate-800">{t.tag}</span>
+                      <span className="text-sm font-medium text-blue-700 hover:underline">{t.tag}</span>
                       {t.description && (
                         <span className="ml-2 text-xs text-slate-500">— {t.description}</span>
                       )}
                     </div>
-                    <span className="shrink-0 text-xs text-slate-400">{t.count}</span>
+                    <span className="shrink-0 text-xs text-slate-400">{t.count} →</span>
                   </li>
                 ))}
               </ul>

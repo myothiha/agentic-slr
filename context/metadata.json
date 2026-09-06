@@ -4,8 +4,7 @@
   "keyword_string": "(\"*language model\" OR \"language model*\" OR \"pre-train*\" OR \"attention model*\" OR \"auto regressive model*\" OR \"retrieval-augmented generation\" OR \"RAG\" OR \"AI agent*\" OR \"agentic AI\" OR \"fine-tun*\" OR \"LoRA\" OR \"QLoRA\" OR \"low rank adaptation\" OR \"instruction tuning\" OR \"prompt tuning\" OR \"knowledge distillation\" OR \"pruning\" OR \"model compression\" OR \"quantiz*\" OR \"quantis*\")\n\nAND\n\n(\"*commerce\" OR \"commerce*\" OR \"retail*\" OR \"sales agent\" OR \"shopping\")",
   "inclusion_criteria": [
     "1. The paper must utilize Large Language Models (e.g., BERT, GPT, T5, Llama) as the primary technology or baseline for the proposed solution or analysis.",
-    "2. The study must focus specifically on e-commerce applications, including but not limited to product recommendations, customer support, review analysis, search optimization, or supply chain logistics within a retail context.",
-    "3. The article provide full text access."
+    "2. The study must focus specifically on e-commerce applications, including but not limited to product recommendations, customer support, review analysis, search optimization, or supply chain logistics within a retail context."
   ],
   "exclusion_criteria": [
     "1. The article's total page is less than four.",

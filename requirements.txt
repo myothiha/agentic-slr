@@ -1,27 +1,78 @@
-# Backend / agents dependencies. Install with:
-#   ./.venv/bin/pip install -r requirements.txt
-fastapi==0.115.0
-uvicorn[standard]==0.30.6
-python-multipart==0.0.9
-pydantic==2.9.2
-python-dotenv==1.0.1
-
-# LangChain v1 + providers (latest stable, pinned)
-langchain==1.3.9
-langchain-core==1.4.7
-langchain-openai==1.3.2
-langchain-anthropic==1.4.6
-langchain-google-genai==4.2.5
-
-# Figure export (scripts/export_keyword_charts.py)
-matplotlib==3.9.2
-
-# Full-text extraction (Phase 3a)
-pypdf==4.2.0      # PDF text extraction (pure-python, no binary deps)
-httpx>=0.28.1     # OpenAlex API + PDF downloads (already present via langchain/google-genai)
-
-# Parsing
-rispy==0.9.0
+annotated-types==0.8.0
+anthropic==0.120.2
+anyio==4.14.2
 bibtexparser==1.4.1
-openpyxl==3.1.5   # .xlsx / .xlsm ingestion
-xlrd==2.0.1       # legacy .xls ingestion
+certifi==2026.7.22
+cffi==2.1.1
+charset-normalizer==3.4.9
+click==8.4.2
+contourpy==1.3.3
+cryptography==50.0.0
+cycler==0.12.1
+distro==1.9.0
+docstring_parser==0.18.0
+et_xmlfile==2.0.0
+fastapi==0.115.0
+filetype==1.2.0
+fonttools==4.63.0
+google-auth==2.56.2
+google-genai==2.8.0
+h11==0.16.0
+httpcore==1.0.9
+httptools==0.8.0
+httpx==0.28.1
+idna==3.18
+jiter==0.16.0
+jsonpatch==1.33
+jsonpointer==3.1.1
+kiwisolver==1.5.0
+langchain==1.3.9
+langchain-anthropic==1.4.6
+langchain-core==1.4.7
+langchain-google-genai==4.2.5
+langchain-openai==1.3.2
+langchain-protocol==0.0.18
+langgraph==1.2.10
+langgraph-checkpoint==4.1.1
+langgraph-prebuilt==1.1.0
+langgraph-sdk==0.4.2
+langsmith==0.10.15
+matplotlib==3.9.2
+numpy==2.5.1
+openai==2.53.0
+openpyxl==3.1.5
+orjson==3.11.9
+ormsgpack==1.12.2
+packaging==26.3
+pillow==12.3.0
+pyasn1==0.6.4
+pyasn1_modules==0.4.2
+pycparser==3.0
+pydantic==2.9.2
+pydantic_core==2.23.4
+pyparsing==3.3.2
+pypdf==4.2.0
+python-dateutil==2.9.0.post0
+python-dotenv==1.0.1
+python-multipart==0.0.9
+PyYAML==6.0.3
+regex==2026.7.19
+requests==2.34.2
+requests-toolbelt==1.0.0
+rispy==0.9.0
+six==1.17.0
+sniffio==1.3.1
+starlette==0.38.6
+tenacity==9.1.4
+tiktoken==0.13.0
+tqdm==4.70.0
+typing_extensions==4.16.0
+urllib3==2.7.0
+uuid_utils==0.17.0
+uvicorn==0.30.6
+uvloop==0.22.1
+watchfiles==1.2.0
+websockets==15.0.1
+xlrd==2.0.1
+xxhash==3.8.1
+zstandard==0.25.0
